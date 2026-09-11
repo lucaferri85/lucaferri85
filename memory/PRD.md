@@ -47,35 +47,36 @@ V1 scope requested by user: mesh import + interactive landmark placement + skele
 - **Dark DCC theme** — charcoal `#16171b/#1e2025`, Blender orange `#ea580c` accents, Chivo display / IBM Plex Sans UI / JetBrains Mono for bone names & coords.
 - **Backend endpoints tested**: 11/11 pytest cases passing (health, project CRUD, landmark persistence, template validation for valid/duplicate/orphan/missing cases).
 
+## What's implemented (Phase A — Template authority, Jun 2026)
+- **Honest provenance**: bundled 71-bone template renamed `Quinn-like Sample (DEV)`, source `sample_dev`, labelled **DEVELOPMENT / SAMPLE TEMPLATE** everywhere (amber badge). It is a hand-authored approximation (subset, eyeballed positions, identity rotations) — never labelled as exact Quinn.
+- **Authoritative FBX import** (`lib/fbx/fbxSkeletonImporter.js` + vendored `FBXLoaderRaw.js` with `parseTreeOnly()`): reads LimbNode/Root/Limb/Effector + skin-bound nodes verbatim — exact names, parent links from OO connections, Lcl T/R/S + Pre/PostRotation + RotationOrder via FBX transform formula, bind-pose cross-check (mm), GlobalSettings (units/axes/version/creator), SHA-256. Units cm→m (×0.01 translations only); axis fix only for non-Y-up files, applied to root bones only. Nothing renamed/dropped/re-parented; anomalies → warnings/errors in `template.diagnostics`.
+- **Template sources**: `sample_dev` | `user_authoritative` (FBX or FBX-derived JSON carrying sha256) | `user_json` (unverified). Green badge **USER-SUPPLIED AUTHORITATIVE TEMPLATE** for FBX imports.
+- **Metadata card** (left panel 03): name, source, bone count, version, import date, validation status. Buttons: IMPORT QUINN FBX, VALIDATE TEMPLATE STRUCTURE, JSON import, EXPORT JSON (derived cache), RESET TO SAMPLE, LIBRARY select.
+- **VALIDATE TEMPLATE STRUCTURE** (`POST /api/templates/validate`, ~19 checks): bones present, names present/unique/charset, parents resolve, single root, acyclic/reachable, depth, local transforms finite, global finite, unit quaternions, positive scales, local/global consistency, zero-length info, height plausibility, L/R symmetry, UE5 core bones, landmark target bones, provenance. Returns `status valid|warning|invalid` + per-check items.
+- **Template tab** (right panel): provenance, units & orientation, skeleton summary (count, roots, depth, skinned/non-skinned, kinds, height, bind Δ), parser report, validation check list with drill-down, export guide.
+- **Bone Inspector** (Bones tab): parent link, children, depth, skinned, FBX node type/id, local pos/quat/euler/scale, global pos/euler, bind pose, verbatim FBX Lcl values. Bone-axes tripod toggle in viewport; corrective/aux colour coding.
+- **Template library** persisted in MongoDB (`templates` collection; upsert by sha256): `POST/GET/DELETE /api/templates`, `GET /api/templates/{id}`. Project save stores `template.source` + `saved_template_id`.
+- **Fit gating**: `isFitAuthorized()` = source `user_authoritative` AND validation not invalid. Diagnostics tab shows "Blocked" reasons.
+- **Docs**: `/app/docs/QUINN_EXPORT_GUIDE.md`, `/app/docs/ue5_export_quinn_skeleton.py`. Fixtures: `/app/tests/fixtures/*.fbx` (+ generator).
+- Tests: iteration_2 — 25/25 backend, all frontend flows pass.
+
+## Phase A checkpoint (STOP — awaiting user)
+User must import the real SKM_Quinn FBX exported from UE5 and confirm hierarchy/transforms before Phase B is authorised.
+
 ## Prioritized backlog
 
-### P0 — Rig fitting core (Phase 2)
-- **SkeletonFitter.fit()**: Solve template bones onto landmarks. Preserve exact names/parents. Adapt only position, orientation, length. Report warnings for unfittable bones instead of dropping them.
-- Live fitted-skeleton preview inside mesh (before skinning).
-- "Regenerate fit" button when landmarks change.
+### Phase B — Auto Fit Skeleton (authorised only after real Quinn FBX validated)
+- Landmark-driven solve; unmapped bones (correctives, twist_02, metacarpals…) keep template-relative local transforms scaled **segment-aware** (arm→arm, leg→leg, spine→torso, hand→hand); IK bones follow functional source; unfittable → WARNING, never dropped/renamed/re-parented.
+- COMPARE WITH SOURCE TEMPLATE: bone-for-bone names + parents + count diff.
+- Live fitted-skeleton preview; regenerate on landmark change.
 
-### P1 — Skinning (Phase 3)
-- Python worker with heat-diffusion (Pinocchio) or bone-glow weight solver.
-- Twist bone weight blending from parent+child.
-- Non-deform flagging for IK bones (excluded from skin cluster).
-- Manual finger placement mode (auto-detect fallback).
-- Weight regeneration invalidation flags (`landmarksDirty → skeletonDirty → skinningDirty`).
+### Phase C — Manual Finger Rig + Rig Preview Correction
+- Finger landmarks for all 5 fingers (knuckle + tip), intermediate/metacarpal joints derived proportionally from template.
+- Direct joint drag in viewport (children follow), Mirror Hand Rig L→R, independent final correction, re-validate.
 
-### P1 — Validation (Phase 3)
-- Full RigValidator diff: bone count, name set equality, parent map, roll delta, vertices without weights, invalid bone influences.
-- PASS/WARN/FAIL summary with per-check drill-down.
+### Phase D — Skinning (Python worker, heat diffusion; twist blending; IK excluded), Validation, Export (headless Blender FBX, Y-up m → Z-up cm).
 
-### P2 — Export (Phase 4)
-- FBX via headless Blender subprocess (`bpy.ops.export_scene.fbx`).
-- GLB via `THREE.GLTFExporter`.
-- JSON rig snapshot.
-- UE5 coordinate conversion (Y-up m → Z-up cm), root transform, axis flip.
-
-### P2 — Nice-to-have
-- Object storage integration to save the actual mesh binary (not just metadata).
-- Modular character support (body/hair/clothing sharing skeleton).
-- Manual weight-paint tool.
-- UE5 Manny + additional Unreal-compatible skeleton templates.
+### Deferred (user said NOT yet): Sample Mesh Library.
 
 ## Deferred technical answers (for reference)
 Full answers to user's 20 pre-development questions are in the initial conversation. Key commitments:

@@ -1,13 +1,11 @@
 import { useRef, useState } from 'react';
 import { useAppStore } from '../../store/appStore';
 import { getViewportManager } from '../viewport/viewportBridge';
-import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { UploadCloud, Trash2, FileCode2, ShieldCheck, RotateCcw } from 'lucide-react';
+import { UploadCloud, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import * as api from '../../lib/api';
-import { DEFAULT_QUINN_TEMPLATE } from '../../lib/quinnTemplate';
+import TemplateSection from './TemplateSection';
 
 export default function LeftPanel() {
   const setMesh = useAppStore(s => s.setMesh);
@@ -16,14 +14,8 @@ export default function LeftPanel() {
   const meshLoaded = useAppStore(s => s.meshLoaded);
   const symmetry = useAppStore(s => s.symmetry);
   const setSymmetry = useAppStore(s => s.setSymmetry);
-  const template = useAppStore(s => s.template);
-  const templateSource = useAppStore(s => s.templateSource);
-  const templateValidation = useAppStore(s => s.templateValidation);
-  const setTemplate = useAppStore(s => s.setTemplate);
-  const resetTemplateToDefault = useAppStore(s => s.resetTemplateToDefault);
 
   const fileInputRef = useRef(null);
-  const templateInputRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
 
   const onFilePicked = async (file) => {
@@ -43,27 +35,6 @@ export default function LeftPanel() {
     } catch (e) {
       console.error(e);
       toast.error(`Load failed: ${e.message}`, { id: t });
-    }
-  };
-
-  const onTemplateFile = async (file) => {
-    if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.json')) {
-      toast.error('Skeleton template must be a .json file');
-      return;
-    }
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      const validation = await api.validateTemplate(data);
-      if (!validation.valid) {
-        toast.error(`Template invalid: ${validation.errors.join('; ')}`);
-        return;
-      }
-      setTemplate(data, 'user_upload', validation);
-      toast.success(`Loaded template · ${validation.bones_count} bones`);
-    } catch (e) {
-      toast.error(`Template parse error: ${e.message}`);
     }
   };
 
@@ -170,57 +141,7 @@ export default function LeftPanel() {
 
       {/* Section 3: Skeleton Template */}
       <Section title="Skeleton Template" step="03">
-        <div className="dcc-panel-surface rounded p-2.5 space-y-1.5">
-          <MetricRow label="NAME"   value={template.name || 'UE5 Quinn'} />
-          <MetricRow label="VER"    value={template.version || '1.0'} />
-          <MetricRow label="BONES"  value={template.bones?.length || 0} />
-          <MetricRow label="SOURCE" value={templateSource === 'bundled_default' ? 'BUNDLED' : 'USER UPLOAD'} />
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <Button
-            data-testid="skeleton-json-upload-btn"
-            variant="outline"
-            size="sm"
-            className="h-8 text-[11px] border-[color:var(--panel-border)]"
-            onClick={() => templateInputRef.current?.click()}
-          >
-            <FileCode2 className="w-3.5 h-3.5 mr-1.5" />
-            UPLOAD JSON
-          </Button>
-          <Button
-            data-testid="skeleton-reset-btn"
-            variant="outline"
-            size="sm"
-            className="h-8 text-[11px] border-[color:var(--panel-border)]"
-            onClick={() => { resetTemplateToDefault(); toast.success('Restored bundled Quinn template'); }}
-          >
-            <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
-            RESET
-          </Button>
-          <input
-            ref={templateInputRef}
-            type="file"
-            accept=".json"
-            className="hidden"
-            onChange={(e) => onTemplateFile(e.target.files?.[0])}
-          />
-        </div>
-        {templateValidation && (
-          <div className="mt-2 dcc-panel-surface rounded p-2 text-[11px] flex items-start gap-2"
-               style={{ borderColor: templateValidation.valid ? 'var(--dcc-emerald)' : 'var(--destructive)' }}>
-            <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5" style={{ color: templateValidation.valid ? 'var(--dcc-emerald)' : 'var(--destructive)' }} />
-            <div className="flex-1">
-              <div className="dcc-label" style={{ color: templateValidation.valid ? 'var(--dcc-emerald)' : 'var(--destructive)' }}>
-                {templateValidation.valid ? 'PASS · ' : 'FAIL · '}{templateValidation.bones_count} bones
-              </div>
-              {templateValidation.warnings?.length > 0 && (
-                <div className="mt-1 text-[10px]" style={{color:'var(--text-mid)'}}>
-                  {templateValidation.warnings.length} warning{templateValidation.warnings.length !== 1 && 's'}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        <TemplateSection />
       </Section>
 
       {/* Fill remainder */}

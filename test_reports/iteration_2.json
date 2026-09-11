@@ -1,0 +1,39 @@
+{
+  "summary": "Phase A (skeleton template authority) fully verified. Backend: 25/25 pytest cases green — new detailed validation matrix (8 scenarios: clean, duplicates, orphan, two-roots, missing bones, missing landmark targets, L without R, non-unit quaternion), templates CRUD with sha256 upsert (idempotency confirmed, list omits template_data, DELETE→404, empty bones→400), project.template persistence with source='user_authoritative'. Frontend: initial sample_dev badge + meta (Quinn-like Sample (DEV), 71 bones, NOT RUN), Validate → warning with provenance WARN, FBX binary import → user_authoritative badge, 9 bones, name=test_skeleton_binary, version=fbx-7400, INVALID pill with landmark_targets FAIL, Template tab shows provenance (FBX 7400, creator, sha256), units block (cm, +Y, ×0.01 conv), parser report (0 errors, mesh SKM_TestMesh ignored), diag root=root, bone-count=9. Bones tab lists all 9 expected bones; inspector on spine_01 shows correct verbatim values (0.1080, 5.00, 1.0755, 10.800, 10.000) and parent-link nav → pelvis. Export triggers 'test_skeleton_binary.template.json' download. Reset returns sample_dev + 71 bones. Diagnostics tab template-authority WARN, ready-for-auto-fit WARN with 'Blocked' text. Project save + full page reload + load restores user_authoritative + 9 bones. Library select shows imported FBX. No console errors.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/projects", "issue": "Still uses magic-number fallback `landmarks_total = ... or 28` (carried from iter 1)"},
+      {"endpoint": "app lifecycle", "issue": "Deprecated @app.on_event('shutdown') still in use (FastAPI lifespan recommended)"}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_templates_phase_a.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "validate_template_structure is ~170 lines in server.py — consider extracting to /app/backend/validators/template.py; server.py is now 509 lines and will exceed the 700-line advisory after Phase B (skinning).",
+    "SavedTemplate upsert branch preserves existing id/created_at but overwrites `validation` field silently — fine but worth documenting so callers know last-writer-wins for validation metadata on same sha256.",
+    "Diagnostic check rows (diag-check-template-authority, diag-check-ready-for-auto-fit) embed WARN/PASS as text but do not expose a data-status attribute like validation-check-<id> does. For consistency with automated tests, add data-status on the DiagnosticsTab check rows too.",
+    "Frontend toggles viewport-skeleton-toggle / viewport-bone-axes-toggle are inside BonesTab.jsx only — if UX expects them always visible in the viewport, hoist them; if intentional (bones-tab context), fine.",
+    "Consider 204 No Content on DELETE /api/templates/{id} and /api/projects/{id} for REST convention (currently returns 200 {ok:true})."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_templates_phase_a.py",
+    "/app/backend/tests/backend_test.py"
+  ],
+  "success_rate": {"backend": "100% (25/25)", "frontend": "100% of tested flows"},
+  "test_credentials": "none required (no auth)",
+  "seed_data_creation": "TEST_ prefixed templates & projects created and cleaned up in module-scoped fixtures; sha256 upsert test leaves 2 dedupable templates that are deleted in teardown.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend regression suite lives at /app/backend/tests/ (backend_test.py + test_templates_phase_a.py, 25 cases, ~2.5s). Phase A UI verified end-to-end against public URL — sample template load, validation, FBX binary import (binary fixture), bones tree, inspector transforms, JSON export, project save/reload/load, library select. Ascii fixture and z-up/metres fixture NOT re-tested here (main agent already covered them). Auto-fit / skinning still gated on Phase B.",
+  "rca of the issue": "N/A — no failures. Three previously-passing tests in backend_test.py needed to be updated because the validator moved from simple valid/errors list to a detailed checks[] matrix; error text prefixes changed (e.g. 'Duplicate' → '<n> duplicate name(s)'). Updated assertions to inspect checks[] by id and lowered-case error substrings."
+}

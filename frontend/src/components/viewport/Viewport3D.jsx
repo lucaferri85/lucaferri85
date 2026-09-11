@@ -20,6 +20,7 @@ export default function Viewport3D() {
   const template = useAppStore(s => s.template);
   const symmetry = useAppStore(s => s.symmetry);
   const selectedBoneName = useAppStore(s => s.selectedBoneName);
+  const showBoneAxes = useAppStore(s => s.showBoneAxes);
   const cameraCommand = useAppStore(s => s.cameraCommand);
 
   const placeLandmark = useAppStore(s => s.placeLandmark);
@@ -67,6 +68,7 @@ export default function Viewport3D() {
 
   // Skeleton overlay content
   useEffect(() => { managerRef.current?.renderSkeleton(template); }, [template]);
+  useEffect(() => { managerRef.current?.setBoneAxesVisible(showBoneAxes); }, [showBoneAxes, template]);
   useEffect(() => { managerRef.current?.highlightBone(selectedBoneName); }, [selectedBoneName, template]);
 
   // Camera commands

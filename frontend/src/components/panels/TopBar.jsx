@@ -23,6 +23,8 @@ export default function TopBar() {
   const mesh = useAppStore(s => s.mesh);
   const symmetry = useAppStore(s => s.symmetry);
   const template = useAppStore(s => s.template);
+  const templateSource = useAppStore(s => s.templateSource);
+  const templateSavedId = useAppStore(s => s.templateSavedId);
   const undo = useAppStore(s => s.undo);
   const redo = useAppStore(s => s.redo);
   const historyLen = useAppStore(s => s.history.length);
@@ -53,9 +55,11 @@ export default function TopBar() {
         symmetry,
         mesh,
         template: {
-          name: template.name || 'UE5 Quinn',
-          version: template.version || '1.0',
+          name: template.name || 'Skeleton Template',
+          version: String(template.version || ''),
+          source: templateSource,
           bones_count: template.bones?.length || 0,
+          saved_template_id: templateSavedId,
           template_data: template,
         },
       };

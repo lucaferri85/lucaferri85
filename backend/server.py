@@ -3,6 +3,8 @@ from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import re
+import math
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
@@ -56,9 +58,11 @@ class MeshInfo(BaseModel):
 
 
 class SkeletonTemplateRef(BaseModel):
-    name: str = "UE5 Quinn (default)"
-    version: str = "1.0"
+    name: str = "Quinn-like Sample (DEV)"
+    version: str = "sample-0.1"
+    source: str = "sample_dev"  # sample_dev | user_authoritative | user_json
     bones_count: int = 0
+    saved_template_id: Optional[str] = None
     template_data: Optional[Dict[str, Any]] = None  # store full JSON so a project is self-contained
 
 
@@ -140,7 +144,7 @@ async def list_projects():
     summaries = []
     for doc in docs:
         placed = sum(1 for lm in doc.get("landmarks", []) if lm.get("placed"))
-        total = len(doc.get("landmarks", [])) or 28
+        total = len(doc.get("landmarks", []))
         updated = doc.get("updated_at")
         if isinstance(updated, str):
             updated = datetime.fromisoformat(updated)
@@ -185,62 +189,301 @@ async def delete_project(project_id: str):
     return {"ok": True}
 
 
-# Template validation - checks the uploaded JSON has valid structure
+# ==================== Skeleton templates ====================
+
 class TemplateValidateRequest(BaseModel):
     template_data: Dict[str, Any]
+    required_bones: List[str] = Field(default_factory=list)
+
+
+class SavedTemplate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    source: str  # sample_dev | user_authoritative | user_json
+    version: str = ""
+    bone_count: int = 0
+    imported_at: Optional[str] = None
+    origin_filename: Optional[str] = None
+    origin_format: Optional[str] = None
+    sha256: Optional[str] = None
+    validation: Optional[Dict[str, Any]] = None
+    template_data: Dict[str, Any]
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class SavedTemplateCreate(BaseModel):
+    template_data: Dict[str, Any]
+    validation: Optional[Dict[str, Any]] = None
+
+
+class SavedTemplateSummary(BaseModel):
+    id: str
+    name: str
+    source: str
+    version: str
+    bone_count: int
+    imported_at: Optional[str] = None
+    origin_filename: Optional[str] = None
+    origin_format: Optional[str] = None
+    validation_status: Optional[str] = None
+    created_at: str
+
+
+def _is_finite_list(v, n) -> bool:
+    return isinstance(v, list) and len(v) == n and all(isinstance(x, (int, float)) and math.isfinite(x) for x in v)
+
+
+def validate_template_structure(data: Dict[str, Any], required_bones: List[str]) -> Dict[str, Any]:
+    """Detailed structural validation. Never mutates the template."""
+    checks: List[Dict[str, Any]] = []
+
+    def add(cid, label, status, detail, items=None):
+        checks.append({"id": cid, "label": label, "status": status, "detail": detail, "items": (items or [])[:200]})
+
+    if not isinstance(data, dict) or not isinstance(data.get("bones"), list) or not data["bones"]:
+        add("bones_present", "Bone list present", "fail", "Template has no 'bones' array")
+        return _finalize(checks, data)
+
+    bones = [b for b in data["bones"] if isinstance(b, dict)]
+    if len(bones) != len(data["bones"]):
+        add("bones_objects", "All bone entries are objects", "fail", f"{len(data['bones']) - len(bones)} non-object entries")
+    add("bones_present", "Bone list present", "pass", f"{len(bones)} bones")
+
+    # names
+    names = [b.get("name") for b in bones]
+    missing_name = [i for i, n in enumerate(names) if not isinstance(n, str) or not n]
+    if missing_name:
+        add("names_present", "Every bone has a name", "fail", f"{len(missing_name)} bones without a name", [f"index {i}" for i in missing_name])
+    else:
+        add("names_present", "Every bone has a name", "pass", "All bones named")
+    seen, dupes = set(), []
+    for n in names:
+        if n in seen and n not in dupes:
+            dupes.append(n)
+        seen.add(n)
+    add("names_unique", "Bone names unique", "fail" if dupes else "pass",
+        f"{len(dupes)} duplicate name(s)" if dupes else "No duplicates", dupes)
+    bad_chars = [n for n in names if isinstance(n, str) and not re.fullmatch(r"[A-Za-z0-9_\-.]+", n)]
+    add("names_charset", "Bone names use safe characters", "warn" if bad_chars else "pass",
+        f"{len(bad_chars)} name(s) contain spaces/special characters" if bad_chars else "A-Z a-z 0-9 _ - . only", bad_chars)
+
+    by_name = {b.get("name"): b for b in bones}
+
+    # parents
+    orphans = [f"{b.get('name')} → {b.get('parent')}" for b in bones if b.get("parent") and b.get("parent") not in by_name]
+    add("parents_resolve", "All parent references resolve", "fail" if orphans else "pass",
+        f"{len(orphans)} orphan parent reference(s)" if orphans else "Every parent exists", orphans)
+    self_parent = [b.get("name") for b in bones if b.get("parent") == b.get("name")]
+    if self_parent:
+        add("self_parent", "No bone is its own parent", "fail", f"{len(self_parent)} self-parented", self_parent)
+
+    roots = [b.get("name") for b in bones if not b.get("parent")]
+    if len(roots) == 1:
+        add("single_root", "Exactly one root bone", "pass", f"Root: {roots[0]}", roots)
+    elif len(roots) == 0:
+        add("single_root", "Exactly one root bone", "fail", "No root bone (all bones have parents → cycle)")
+    else:
+        add("single_root", "Exactly one root bone", "fail", f"{len(roots)} roots found; UE5 requires one", roots)
+
+    # cycles / reachability
+    children: Dict[str, List[str]] = {}
+    for b in bones:
+        p = b.get("parent")
+        if p:
+            children.setdefault(p, []).append(b.get("name"))
+    reachable, stack = set(), list(roots)
+    depth = {r: 0 for r in roots}
+    while stack:
+        n = stack.pop()
+        if n in reachable:
+            continue
+        reachable.add(n)
+        for c in children.get(n, []):
+            depth[c] = depth.get(n, 0) + 1
+            stack.append(c)
+    unreachable = [n for n in names if n not in reachable]
+    add("no_cycles", "Hierarchy is acyclic / fully reachable", "fail" if unreachable else "pass",
+        f"{len(unreachable)} bone(s) unreachable from root (cycle or broken chain)" if unreachable else "All bones reachable from root", unreachable)
+    max_depth = max(depth.values()) if depth else 0
+    add("depth", "Hierarchy depth", "pass" if max_depth <= 64 else "warn", f"Max depth {max_depth}")
+
+    # transforms
+    bad_local, bad_global, bad_quat, bad_scale = [], [], [], []
+    for b in bones:
+        rl = b.get("refLocal") or {}
+        if not (_is_finite_list(rl.get("pos"), 3) and _is_finite_list(rl.get("rot"), 4) and _is_finite_list(rl.get("scale"), 3)):
+            bad_local.append(b.get("name"))
+            continue
+        q = rl["rot"]
+        ln = math.sqrt(sum(x * x for x in q))
+        if abs(ln - 1.0) > 1e-3:
+            bad_quat.append(f"{b.get('name')} (|q|={ln:.4f})")
+        if any(abs(s) < 1e-6 for s in rl["scale"]) or any(s < 0 for s in rl["scale"]):
+            bad_scale.append(f"{b.get('name')} {rl['scale']}")
+        if not _is_finite_list(b.get("refGlobal"), 3):
+            bad_global.append(b.get("name"))
+    add("local_transforms", "Local reference transforms complete & finite", "fail" if bad_local else "pass",
+        f"{len(bad_local)} bone(s) missing/invalid refLocal" if bad_local else "pos[3] rot[4] scale[3] present for all bones", bad_local)
+    add("global_positions", "Global reference positions finite", "fail" if bad_global else "pass",
+        f"{len(bad_global)} invalid refGlobal" if bad_global else "All finite", bad_global)
+    add("quaternions_unit", "Rotation quaternions normalised", "warn" if bad_quat else "pass",
+        f"{len(bad_quat)} non-unit quaternion(s)" if bad_quat else "All |q| ≈ 1", bad_quat)
+    add("scale_sane", "Bone scales positive & non-zero", "fail" if bad_scale else "pass",
+        f"{len(bad_scale)} bone(s) with zero/negative scale" if bad_scale else "OK", bad_scale)
+
+    # global/local consistency
+    inconsistent = []
+    for b in bones:
+        p = by_name.get(b.get("parent")) if b.get("parent") else None
+        if p and _is_finite_list(b.get("refGlobal"), 3) and _is_finite_list(p.get("refGlobal"), 3) and _is_finite_list((b.get("refLocal") or {}).get("pos"), 3):
+            dl = math.dist(b["refGlobal"], p["refGlobal"])
+            ll = math.sqrt(sum(x * x for x in b["refLocal"]["pos"]))
+            if abs(dl - ll) > 1e-3 + 0.01 * ll:
+                inconsistent.append(f"{b['name']} (global span {dl:.4f} m vs local length {ll:.4f} m)")
+    add("local_global_consistent", "Local offsets consistent with global positions", "warn" if inconsistent else "pass",
+        f"{len(inconsistent)} bone(s) where |local pos| ≠ parent→bone distance (non-unit parent scale?)" if inconsistent else "Chained transforms match", inconsistent)
+
+    # zero-length bones (informational)
+    zero_len = [b.get("name") for b in bones if b.get("parent") and _is_finite_list((b.get("refLocal") or {}).get("pos"), 3)
+                and math.sqrt(sum(x * x for x in b["refLocal"]["pos"])) < 1e-6]
+    add("zero_length", "Zero-length bones (coincident with parent)", "info" if zero_len else "pass",
+        f"{len(zero_len)} bone(s) sit exactly on their parent (normal for ik_*_root / helper bones)" if zero_len else "None", zero_len)
+
+    # height sanity
+    ys = [b["refGlobal"][1] for b in bones if _is_finite_list(b.get("refGlobal"), 3)]
+    height = (max(ys) - min(ys)) if ys else 0.0
+    if 0.5 <= height <= 3.0:
+        add("scale_units", "Skeleton height plausible for metres", "pass", f"{height:.3f} m")
+    else:
+        add("scale_units", "Skeleton height plausible for metres", "warn", f"{height:.3f} m — check unit conversion (expected ~1.5–2.0 m for a humanoid)")
+
+    # L/R symmetry
+    sym_issues = []
+    for n in names:
+        if not isinstance(n, str):
+            continue
+        if n.endswith("_l"):
+            twin = n[:-2] + "_r"
+            if twin not in by_name:
+                sym_issues.append(f"{n} has no {twin}")
+            else:
+                pl, pr = by_name[n].get("parent"), by_name[twin].get("parent")
+                exp = (pl[:-2] + "_r") if isinstance(pl, str) and pl.endswith("_l") else pl
+                if exp != pr:
+                    sym_issues.append(f"{n} parent {pl} ↔ {twin} parent {pr}")
+        elif n.endswith("_r") and (n[:-2] + "_l") not in by_name:
+            sym_issues.append(f"{n} has no {n[:-2]}_l")
+    add("lr_symmetry", "Left/right bone pairs mirror (names + parents)", "warn" if sym_issues else "pass",
+        f"{len(sym_issues)} asymmetry issue(s)" if sym_issues else "All _l/_r pairs consistent", sym_issues)
+
+    # UE5 mannequin family markers
+    core = ["root", "pelvis", "spine_01", "head", "clavicle_l", "clavicle_r", "hand_l", "hand_r", "thigh_l", "thigh_r", "foot_l", "foot_r"]
+    missing_core = [c for c in core if c not in by_name]
+    add("ue5_family", "UE5 Mannequin-family core bones present", "warn" if missing_core else "pass",
+        f"{len(missing_core)} core bone(s) missing — may not be a Quinn/Manny skeleton" if missing_core else "root/pelvis/spine/head/limb bones found", missing_core)
+    if "root" in by_name and by_name["root"].get("parent"):
+        add("root_is_root", "'root' is the top of the hierarchy", "warn", f"'root' is parented to {by_name['root'].get('parent')}")
+
+    # landmark targets
+    if required_bones:
+        miss = [r for r in required_bones if r not in by_name]
+        add("landmark_targets", "Landmark target bones exist", "fail" if miss else "pass",
+            f"{len(miss)} landmark-driven bone(s) missing from template" if miss else f"All {len(required_bones)} target bones present", miss)
+
+    # provenance
+    src = data.get("source")
+    prov = data.get("provenance") or {}
+    if src == "user_authoritative" and prov.get("origin_format") == "fbx":
+        add("provenance", "Provenance", "pass", f"FBX {prov.get('fbx_version')} · {prov.get('origin_filename')} · sha256 {str(prov.get('sha256') or '')[:12]}…")
+    elif src == "sample_dev":
+        add("provenance", "Provenance", "warn", "DEVELOPMENT / SAMPLE template — hand-authored approximation, not exported from Unreal")
+    else:
+        add("provenance", "Provenance", "warn", "No FBX provenance recorded — origin cannot be verified")
+
+    return _finalize(checks, data)
+
+
+def _finalize(checks, data):
+    statuses = [c["status"] for c in checks]
+    if "fail" in statuses:
+        overall = "invalid"
+    elif "warn" in statuses:
+        overall = "warning"
+    else:
+        overall = "valid"
+    bones = data.get("bones") if isinstance(data, dict) else None
+    return {
+        "status": overall,
+        "valid": overall != "invalid",
+        "checks": checks,
+        "errors": [c["detail"] for c in checks if c["status"] == "fail"],
+        "warnings": [c["detail"] for c in checks if c["status"] == "warn"],
+        "bones_count": len(bones) if isinstance(bones, list) else 0,
+        "name": data.get("name", "Unnamed Template") if isinstance(data, dict) else "Unnamed",
+        "version": data.get("version", "") if isinstance(data, dict) else "",
+        "source": data.get("source") if isinstance(data, dict) else None,
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 @api_router.post("/templates/validate")
 async def validate_template(payload: TemplateValidateRequest):
+    return validate_template_structure(payload.template_data, payload.required_bones)
+
+
+@api_router.post("/templates", response_model=SavedTemplate)
+async def save_template(payload: SavedTemplateCreate):
     data = payload.template_data
-    errors = []
-    warnings = []
+    if not isinstance(data.get("bones"), list) or not data["bones"]:
+        raise HTTPException(status_code=400, detail="template_data.bones must be a non-empty list")
+    prov = data.get("provenance") or {}
+    tpl = SavedTemplate(
+        name=data.get("name", "Unnamed Template"),
+        source=data.get("source", "user_json"),
+        version=str(data.get("version", "")),
+        bone_count=len(data["bones"]),
+        imported_at=prov.get("imported_at"),
+        origin_filename=prov.get("origin_filename"),
+        origin_format=prov.get("origin_format"),
+        sha256=prov.get("sha256"),
+        validation=payload.validation,
+        template_data=data,
+    )
+    if tpl.sha256:
+        existing = await db.templates.find_one({"sha256": tpl.sha256}, {"_id": 0})
+        if existing:
+            await db.templates.replace_one({"sha256": tpl.sha256}, {**tpl.model_dump(), "id": existing["id"], "created_at": existing["created_at"]})
+            return SavedTemplate(**{**tpl.model_dump(), "id": existing["id"], "created_at": existing["created_at"]})
+    await db.templates.insert_one(tpl.model_dump())
+    return tpl
 
-    if not isinstance(data, dict):
-        errors.append("Template root must be an object")
-        return {"valid": False, "errors": errors, "warnings": warnings}
 
-    if "bones" not in data or not isinstance(data["bones"], list):
-        errors.append("Missing required field: 'bones' (list)")
-        return {"valid": False, "errors": errors, "warnings": warnings}
+@api_router.get("/templates", response_model=List[SavedTemplateSummary])
+async def list_templates():
+    docs = await db.templates.find({}, {"_id": 0, "template_data": 0}).sort("created_at", -1).to_list(200)
+    return [SavedTemplateSummary(
+        id=d["id"], name=d["name"], source=d.get("source", "user_json"), version=str(d.get("version", "")),
+        bone_count=d.get("bone_count", 0), imported_at=d.get("imported_at"), origin_filename=d.get("origin_filename"),
+        origin_format=d.get("origin_format"), validation_status=(d.get("validation") or {}).get("status"),
+        created_at=d["created_at"],
+    ) for d in docs]
 
-    bones = data["bones"]
-    names = set()
-    duplicates = []
-    for i, b in enumerate(bones):
-        if not isinstance(b, dict):
-            errors.append(f"Bone {i} is not an object")
-            continue
-        if "name" not in b:
-            errors.append(f"Bone at index {i} is missing 'name'")
-            continue
-        n = b["name"]
-        if n in names:
-            duplicates.append(n)
-        names.add(n)
-        if "parent" not in b:
-            warnings.append(f"Bone '{n}' has no 'parent' field (assumed root)")
 
-    if duplicates:
-        errors.append(f"Duplicate bone names: {', '.join(sorted(set(duplicates)))}")
+@api_router.get("/templates/{template_id}", response_model=SavedTemplate)
+async def get_template(template_id: str):
+    doc = await db.templates.find_one({"id": template_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return SavedTemplate(**doc)
 
-    # orphan parent check
-    orphans = []
-    for b in bones:
-        parent = b.get("parent")
-        if parent and parent not in names:
-            orphans.append(f"{b.get('name')} → {parent}")
-    if orphans:
-        errors.append(f"Orphan parents: {'; '.join(orphans)}")
 
-    return {
-        "valid": len(errors) == 0,
-        "errors": errors,
-        "warnings": warnings,
-        "bones_count": len(bones),
-        "name": data.get("name", "Unnamed Template"),
-        "version": data.get("version", "1.0"),
-    }
+@api_router.delete("/templates/{template_id}")
+async def delete_template(template_id: str):
+    result = await db.templates.delete_one({"id": template_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return {"ok": True}
 
 
 app.include_router(api_router)

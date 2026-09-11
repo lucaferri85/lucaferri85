@@ -274,6 +274,7 @@ export class ViewportManager {
       if (c.geometry) c.geometry.dispose();
       if (c.material) c.material.dispose && c.material.dispose();
     }
+    this._lastSkeletonTemplate = template;
     if (!template || !template.bones) return;
 
     const byName = Object.fromEntries(template.bones.map(b => [b.name, b]));
@@ -281,9 +282,14 @@ export class ViewportManager {
     // Draw bone lines
     const positions = [];
     const colors = [];
-    const cStd = new THREE.Color(0x10b981);
-    const cTwist = new THREE.Color(0xa855f7);
-    const cIK = new THREE.Color(0x06b6d4);
+    const kindColors = {
+      deform: new THREE.Color(0x10b981),
+      twist: new THREE.Color(0xa855f7),
+      ik: new THREE.Color(0x06b6d4),
+      corrective: new THREE.Color(0xeab308),
+      aux: new THREE.Color(0x94a3b8),
+      root: new THREE.Color(0xf97316),
+    };
 
     for (const b of template.bones) {
       if (!b.parent) continue;
@@ -291,7 +297,7 @@ export class ViewportManager {
       if (!p) continue;
       positions.push(p.refGlobal[0], p.refGlobal[1], p.refGlobal[2]);
       positions.push(b.refGlobal[0], b.refGlobal[1], b.refGlobal[2]);
-      const c = b.kind === 'twist' ? cTwist : b.kind === 'ik' ? cIK : cStd;
+      const c = kindColors[b.kind] || kindColors.deform;
       colors.push(c.r, c.g, c.b, c.r, c.g, c.b);
     }
     const geo = new THREE.BufferGeometry();
@@ -312,7 +318,34 @@ export class ViewportManager {
       s.userData.boneName = b.name;
       this.skeletonGroup.add(s);
     }
+
+    // Per-bone orientation tripods (from refGlobalRot) — toggled separately
+    const axisPos = [], axisCol = [];
+    const len = 0.025;
+    const q = new THREE.Quaternion();
+    const o = new THREE.Vector3();
+    const axes = [[1, 0, 0, 0xef4444], [0, 1, 0, 0x22c55e], [0, 0, 1, 0x3b82f6]];
+    for (const b of template.bones) {
+      if (!b.refGlobalRot) continue;
+      q.set(b.refGlobalRot[0], b.refGlobalRot[1], b.refGlobalRot[2], b.refGlobalRot[3]);
+      o.set(b.refGlobal[0], b.refGlobal[1], b.refGlobal[2]);
+      for (const [x, y, z, hex] of axes) {
+        const d = new THREE.Vector3(x, y, z).applyQuaternion(q).multiplyScalar(len);
+        axisPos.push(o.x, o.y, o.z, o.x + d.x, o.y + d.y, o.z + d.z);
+        const c = new THREE.Color(hex);
+        axisCol.push(c.r, c.g, c.b, c.r, c.g, c.b);
+      }
+    }
+    const axGeo = new THREE.BufferGeometry();
+    axGeo.setAttribute('position', new THREE.Float32BufferAttribute(axisPos, 3));
+    axGeo.setAttribute('color', new THREE.Float32BufferAttribute(axisCol, 3));
+    this.boneAxes = new THREE.LineSegments(axGeo, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false }));
+    this.boneAxes.renderOrder = 4;
+    this.boneAxes.visible = !!this.showBoneAxes;
+    this.skeletonGroup.add(this.boneAxes);
   }
+
+  setBoneAxesVisible(v) { this.showBoneAxes = v; if (this.boneAxes) this.boneAxes.visible = v; }
 
   /** Highlight a bone in the skeleton overlay. */
   highlightBone(name) {

@@ -4,6 +4,8 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Search, ChevronRight, ChevronDown } from 'lucide-react';
 import { buildBoneTree } from '../../lib/quinnTemplate';
+import TemplateBadge from './TemplateBadge';
+import BoneInspector from './BoneInspector';
 
 /**
  * Flatten a bone tree into a linear list.  We render iteratively (map)
@@ -39,8 +41,11 @@ function collectDescendantMatches(nodes, q) {
 
 export default function BonesTab() {
   const template = useAppStore(s => s.template);
+  const templateSource = useAppStore(s => s.templateSource);
   const showSkeleton = useAppStore(s => s.showSkeleton);
   const toggleSkeleton = useAppStore(s => s.toggleSkeleton);
+  const showBoneAxes = useAppStore(s => s.showBoneAxes);
+  const toggleBoneAxes = useAppStore(s => s.toggleBoneAxes);
   const setSelectedBone = useAppStore(s => s.setSelectedBone);
   const selectedBoneName = useAppStore(s => s.selectedBoneName);
   const [search, setSearch] = useState('');
@@ -74,19 +79,31 @@ export default function BonesTab() {
   return (
     <div className="h-full flex flex-col">
       <div className="px-3 py-2.5 border-b space-y-2" style={{ borderColor: 'var(--panel-border)' }}>
-        <div className="flex items-center justify-between">
-          <span className="dcc-label">{template.name || 'Skeleton'}</span>
-          <span className="dcc-metric">{template.bones?.length || 0} bones</span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="dcc-label truncate" title={template.name}>{template.name || 'Skeleton'}</span>
+          <span className="dcc-metric shrink-0" data-testid="bones-tab-count">{template.bones?.length || 0} bones</span>
         </div>
-        <Button
-          data-testid="viewport-skeleton-toggle"
-          size="sm"
-          onClick={toggleSkeleton}
-          className="h-7 w-full text-[11px] text-white"
-          style={{ background: showSkeleton ? 'var(--dcc-orange)' : 'var(--panel-bg-raised)' }}
-        >
-          {showSkeleton ? 'HIDE SKELETON' : 'SHOW SKELETON'}
-        </Button>
+        <TemplateBadge source={templateSource} compact />
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            data-testid="viewport-skeleton-toggle"
+            size="sm"
+            onClick={toggleSkeleton}
+            className="h-7 text-[11px] text-white"
+            style={{ background: showSkeleton ? 'var(--dcc-orange)' : 'var(--panel-bg-raised)' }}
+          >
+            {showSkeleton ? 'HIDE SKELETON' : 'SHOW SKELETON'}
+          </Button>
+          <Button
+            data-testid="viewport-bone-axes-toggle"
+            size="sm"
+            onClick={toggleBoneAxes}
+            className="h-7 text-[11px] text-white"
+            style={{ background: showBoneAxes ? 'var(--dcc-orange)' : 'var(--panel-bg-raised)' }}
+          >
+            {showBoneAxes ? 'HIDE BONE AXES' : 'SHOW BONE AXES'}
+          </Button>
+        </div>
         <div className="relative">
           <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-faint)' }} />
           <Input
@@ -101,7 +118,7 @@ export default function BonesTab() {
           <div className="dcc-label text-[9px]">{filteredCount} matches</div>
         )}
       </div>
-      <div className="flex-1 overflow-auto dcc-scroll py-1">
+      <div className="flex-1 overflow-auto dcc-scroll py-1" data-testid="bone-tree-list">
         {visibleFlat.map(item => (
           <BoneRow
             key={item.node.name}
@@ -115,6 +132,7 @@ export default function BonesTab() {
           />
         ))}
       </div>
+      <BoneInspector />
     </div>
   );
 }
@@ -161,5 +179,7 @@ function colorForKind(kind) {
   if (kind === 'twist') return 'var(--dcc-purple)';
   if (kind === 'ik')    return 'var(--dcc-cyan)';
   if (kind === 'root')  return 'var(--dcc-orange-glow)';
+  if (kind === 'corrective') return 'var(--dcc-gold)';
+  if (kind === 'aux')   return 'var(--text-mid)';
   return 'var(--dcc-emerald)';
 }

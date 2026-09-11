@@ -32,7 +32,23 @@ export async function deleteProject(id) {
 }
 
 // Templates
-export async function validateTemplate(template_data) {
-  const { data } = await api.post('/templates/validate', { template_data });
+export async function validateTemplate(template_data, required_bones = []) {
+  const { data } = await api.post('/templates/validate', { template_data, required_bones });
+  return data;
+}
+export async function saveTemplate(template_data, validation = null) {
+  const { data } = await api.post('/templates', { template_data, validation });
+  return data;
+}
+export async function listTemplates() {
+  const { data } = await api.get('/templates');
+  return data;
+}
+export async function getTemplate(id) {
+  const { data } = await api.get(`/templates/${id}`);
+  return data;
+}
+export async function deleteTemplate(id) {
+  const { data } = await api.delete(`/templates/${id}`);
   return data;
 }

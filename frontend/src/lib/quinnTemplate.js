@@ -1,44 +1,60 @@
 /**
- * Default UE5 SKM_Quinn skeleton template.
+ * DEVELOPMENT / SAMPLE skeleton template ("Quinn-like Sample (DEV)").
  *
- * This is the authoritative reference bundled with the application so users
- * can immediately load and visualize the Quinn hierarchy. The Skeleton
- * Template Manager treats it identically to a user-uploaded JSON file - the
- * fitter never assumes these specific bone names in code; it always reads
- * them from whichever template is currently loaded.
+ * HONEST PROVENANCE: this file was hand-authored in code. Bone names and
+ * parent links follow the public UE5 Mannequin naming convention, but the
+ * bone set is a 71-bone SUBSET, positions are eyeballed A-pose guesses and
+ * every local rotation is identity. It is NOT an exported SKM_Quinn asset
+ * and must never be labelled as an exact UE5 Quinn skeleton.
  *
- * File format (JSON schema):
+ * It exists only so the UI can be exercised before the user imports the
+ * authoritative skeleton (FBX exported from Unreal, see lib/fbx/). The
+ * fitter never assumes these bone names; it always reads whichever
+ * template is currently loaded.
+ *
+ * Template JSON schema (schema_version 2):
  * {
- *   "name": "UE5 Quinn",
- *   "version": "1.0",
- *   "unit": "m",         // internal storage unit (converted on UE export)
- *   "up_axis": "y",      // Three.js viewport axis
- *   "bones": [
- *     {
- *       "name": "root",              // exact UE bone name
- *       "parent": null,              // string parent name, null = root
- *       "kind": "root|deform|twist|ik|aux",
- *       "refLocal": {                // Quinn A-pose local transform
- *         "pos":   [x,y,z],
- *         "rot":   [x,y,z,w],
- *         "scale": [1,1,1]
- *       },
- *       "refGlobal": [x,y,z],        // computed absolute Quinn A-pose position
- *       "roll": 0.0,
- *       "derived": {                 // optional rule for IK/aux bones
- *         "source": "hand_l",        // bone whose pose this follows
- *         "space":  "global"
- *       }
- *     },
- *     ...
- *   ]
+ *   "schema_version": 2,
+ *   "name": "...", "version": "...", "unit": "m", "up_axis": "y",
+ *   "source": "sample_dev" | "user_authoritative" | "user_json",
+ *   "provenance": { origin_format, origin_filename, imported_at, fbx_version,
+ *                   unit_scale_factor, up_axis, sha256, ... },
+ *   "bones": [{
+ *     "name": "root", "parent": null,
+ *     "kind": "root|deform|twist|ik|corrective|aux",   // inferred label only
+ *     "refLocal": { "pos":[x,y,z], "rot":[x,y,z,w], "scale":[1,1,1] },
+ *     "refGlobal": [x,y,z], "refGlobalRot": [x,y,z,w],
+ *     "fbx_raw": {...}      // verbatim Lcl values when imported from FBX
+ *   }]
  * }
- *
- * Positions below are Quinn A-pose reference positions in metres, Y-up.
- * They are approximations of the actual SKM_Quinn asset from UE5 5.4.
- * When the user has the real skeleton, they upload their own JSON to
- * override this file completely.
  */
+
+export const TEMPLATE_SCHEMA_VERSION = 2;
+
+export const TEMPLATE_SOURCES = {
+  sample_dev: {
+    badge: 'DEVELOPMENT / SAMPLE TEMPLATE',
+    short: 'SAMPLE (DEV)',
+    tone: 'warn',
+    note: 'Hand-authored approximation. NOT an exact UE5 Quinn skeleton. Auto Fit is disabled.',
+  },
+  user_authoritative: {
+    badge: 'USER-SUPPLIED AUTHORITATIVE TEMPLATE',
+    short: 'AUTHORITATIVE',
+    tone: 'ok',
+    note: 'Bone names, hierarchy and reference transforms read verbatim from your Unreal FBX export.',
+  },
+  user_json: {
+    badge: 'USER JSON · UNVERIFIED PROVENANCE',
+    short: 'USER JSON',
+    tone: 'warn',
+    note: 'JSON without FBX provenance. Treated as user data but cannot be proven to originate from Unreal.',
+  },
+};
+
+export function sourceInfo(source) {
+  return TEMPLATE_SOURCES[source] || TEMPLATE_SOURCES.user_json;
+}
 
 // Helper to build a bone entry succinctly
 const B = (name, parent, refGlobal, kind = 'deform', extra = {}) => ({
@@ -150,18 +166,30 @@ function buildTemplate(bones) {
       ? [b.refGlobal[0] - pg[0], b.refGlobal[1] - pg[1], b.refGlobal[2] - pg[2]]
       : b.refGlobal.slice();
     b.refLocal = { pos: local, rot: [0, 0, 0, 1], scale: [1, 1, 1] };
+    b.refGlobalRot = [0, 0, 0, 1];
+    b.kind_inferred = false;
+    b.skinned = b.kind === 'deform' || b.kind === 'twist';
+    b.fbx_attr_type = null;
   }
   return {
-    name: 'UE5 Quinn',
-    version: '1.0',
+    schema_version: TEMPLATE_SCHEMA_VERSION,
+    name: 'Quinn-like Sample (DEV)',
+    version: 'sample-0.1',
     unit: 'm',
     up_axis: 'y',
-    source: 'bundled_default',
+    source: 'sample_dev',
+    provenance: {
+      origin_format: 'hand-authored',
+      origin_filename: 'src/lib/quinnTemplate.js',
+      imported_at: null,
+      note: '71-bone subset, approximated positions, identity rotations. Not exported from Unreal.',
+    },
     bones,
   };
 }
 
 export const DEFAULT_QUINN_TEMPLATE = buildTemplate(rawBones);
+export const SAMPLE_TEMPLATE = DEFAULT_QUINN_TEMPLATE;
 
 /** Extract parent-name → children-name[] map. */
 export function buildChildrenMap(template) {

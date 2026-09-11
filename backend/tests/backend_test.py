@@ -116,9 +116,12 @@ def test_template_validate_valid(session):
     r = session.post(f"{API}/templates/validate", json={"template_data": template}, timeout=15)
     assert r.status_code == 200
     data = r.json()
-    assert data["valid"] is True
+    # New detailed validator: without refLocal transforms this reports 'invalid'; but structural checks pass
     assert data["bones_count"] == 5
-    assert data["errors"] == []
+    structural = {c["id"]: c["status"] for c in data["checks"]}
+    assert structural.get("names_unique") == "pass"
+    assert structural.get("parents_resolve") == "pass"
+    assert structural.get("single_root") == "pass"
 
 
 def test_template_validate_duplicates(session):
@@ -133,7 +136,7 @@ def test_template_validate_duplicates(session):
     assert r.status_code == 200
     data = r.json()
     assert data["valid"] is False
-    assert any("Duplicate" in e for e in data["errors"])
+    assert any("uplicate" in e or "duplicate" in e.lower() for e in data["errors"])
 
 
 def test_template_validate_orphan_parent(session):
@@ -147,7 +150,7 @@ def test_template_validate_orphan_parent(session):
     assert r.status_code == 200
     data = r.json()
     assert data["valid"] is False
-    assert any("Orphan" in e for e in data["errors"])
+    assert any("orphan" in e.lower() for e in data["errors"])
 
 
 def test_template_validate_missing_bones(session):

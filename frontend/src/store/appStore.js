@@ -29,9 +29,12 @@ export const useAppStore = create((set, get) => ({
 
   // ---------- Skeleton template ----------
   template: DEFAULT_QUINN_TEMPLATE,
-  templateSource: 'bundled_default',
-  templateValidation: null, // { valid, errors, warnings, bones_count }
+  templateSource: 'sample_dev', // sample_dev | user_authoritative | user_json
+  templateValidation: null,     // detailed result from POST /api/templates/validate
+  templateSavedId: null,        // id in MongoDB templates collection
+  templateImporting: false,
   selectedBoneName: null,
+  showBoneAxes: false,
 
   // ---------- Viewport ----------
   showSkeleton: false,
@@ -63,6 +66,12 @@ export const useAppStore = create((set, get) => ({
       template: (project.template && project.template.template_data && project.template.template_data.bones)
         ? project.template.template_data
         : DEFAULT_QUINN_TEMPLATE,
+      templateSource: (project.template && project.template.template_data && project.template.template_data.bones)
+        ? (project.template.source || project.template.template_data.source || 'user_json')
+        : 'sample_dev',
+      templateSavedId: project.template?.saved_template_id || null,
+      templateValidation: null,
+      selectedBoneName: null,
       dirty: false,
       lastSavedAt: project.updated_at,
       history: [],
@@ -253,19 +262,27 @@ export const useAppStore = create((set, get) => ({
   },
 
   // ---------- Template ----------
-  setTemplate: (tpl, source = 'user_upload', validation = null) => set({
+  setTemplate: (tpl, source = 'user_json', validation = null, savedId = null) => set({
     template: tpl,
     templateSource: source,
     templateValidation: validation,
+    templateSavedId: savedId,
+    selectedBoneName: null,
     dirty: true,
   }),
+  setTemplateValidation: (validation) => set({ templateValidation: validation }),
+  setTemplateSavedId: (id) => set({ templateSavedId: id }),
+  setTemplateImporting: (v) => set({ templateImporting: v }),
   resetTemplateToDefault: () => set({
     template: DEFAULT_QUINN_TEMPLATE,
-    templateSource: 'bundled_default',
+    templateSource: 'sample_dev',
     templateValidation: null,
+    templateSavedId: null,
+    selectedBoneName: null,
     dirty: true,
   }),
   setSelectedBone: (name) => set({ selectedBoneName: name }),
+  toggleBoneAxes: () => set({ showBoneAxes: !get().showBoneAxes }),
 
   // ---------- Viewport toggles ----------
   toggleSkeleton:   () => set({ showSkeleton:   !get().showSkeleton }),

@@ -4,10 +4,10 @@ import { CheckCircle2, Circle, Lock } from 'lucide-react';
 const STAGES = [
   { id: 'import',     step: '01', name: 'IMPORT MESH',     desc: 'Load GLB / GLTF / FBX / OBJ' },
   { id: 'landmarks',  step: '02', name: 'PLACE LANDMARKS', desc: 'Define anatomical anchors' },
-  { id: 'skeleton',   step: '03', name: 'FIT SKELETON',    desc: 'Solve Quinn template · Phase 2' },
-  { id: 'skinning',   step: '04', name: 'SKINNING',        desc: 'Heat-diffusion weights · Phase 3' },
-  { id: 'validation', step: '05', name: 'UE5 VALIDATE',    desc: 'Bone parity vs template · Phase 3' },
-  { id: 'export',     step: '06', name: 'EXPORT RIG',      desc: 'FBX / GLTF for UE5 · Phase 4' },
+  { id: 'skeleton',   step: '03', name: 'SKELETON TEMPLATE', desc: 'Import & validate authoritative Quinn FBX' },
+  { id: 'skinning',   step: '04', name: 'SKINNING',        desc: 'Heat-diffusion weights · Phase C' },
+  { id: 'validation', step: '05', name: 'UE5 VALIDATE',    desc: 'Compare with source template · Phase B' },
+  { id: 'export',     step: '06', name: 'EXPORT RIG',      desc: 'FBX / GLTF for UE5 · Phase D' },
 ];
 
 const IMPLEMENTED = new Set(['import', 'landmarks', 'skeleton']);
