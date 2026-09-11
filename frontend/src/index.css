@@ -1,0 +1,178 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --- UE5 Quinn Auto-Rigger Pro — Tactical DCC Dark Theme --- */
+@import url('https://fonts.googleapis.com/css2?family=Chivo:wght@400;600;700;900&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root, .dark {
+    /* shadcn tokens mapped to DCC dark palette */
+    --background: 225 8% 9%;         /* #16171b */
+    --foreground: 0 0% 96%;           /* #f4f4f5 */
+    --card: 226 8% 12%;               /* #1e2025 */
+    --card-foreground: 0 0% 96%;
+    --popover: 226 10% 10%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 21 90% 48%;            /* #ea580c blender orange */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 228 8% 16%;          /* #252830 */
+    --secondary-foreground: 0 0% 96%;
+    --muted: 228 8% 14%;
+    --muted-foreground: 240 5% 65%;   /* #a1a1aa */
+    --accent: 21 90% 48%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 228 10% 20%;            /* #2e323b */
+    --input: 228 10% 20%;
+    --ring: 21 90% 48%;
+    --radius: 6px;
+
+    /* DCC-specific tokens */
+    --viewport-bg: #121316;
+    --panel-bg-deep: #16171b;
+    --panel-bg-surface: #1e2025;
+    --panel-bg-raised: #252830;
+    --panel-border: #2e323b;
+    --panel-border-subtle: #22252c;
+    --dcc-orange: #ea580c;
+    --dcc-orange-glow: #f97316;
+    --dcc-orange-hover: #fb923c;
+    --dcc-cyan: #38bdf8;
+    --dcc-red: #ef4444;
+    --dcc-gold: #eab308;
+    --dcc-emerald: #10b981;
+    --dcc-purple: #a855f7;
+    --text-high: #f4f4f5;
+    --text-mid: #a1a1aa;
+    --text-faint: #71717a;
+
+    color-scheme: dark;
+}
+
+html, body, #root {
+    height: 100%;
+    background: var(--panel-bg-deep);
+    color: var(--text-high);
+    overflow: hidden;
+}
+
+body {
+    margin: 0;
+    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-size: 13px;
+}
+
+.font-display {
+    font-family: 'Chivo', system-ui, sans-serif;
+    letter-spacing: -0.01em;
+}
+.font-mono {
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', 'Source Code Pro', monospace;
+}
+
+.dcc-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-mid);
+}
+
+.dcc-metric {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--dcc-orange-glow);
+    font-variant-numeric: tabular-nums;
+}
+
+.dcc-heading {
+    font-family: 'Chivo', system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-high);
+}
+
+.dcc-panel {
+    background: var(--panel-bg-deep);
+    border-color: var(--panel-border);
+}
+.dcc-panel-surface {
+    background: var(--panel-bg-surface);
+    border: 1px solid var(--panel-border-subtle);
+}
+.dcc-panel-raised {
+    background: var(--panel-bg-raised);
+    border: 1px solid var(--panel-border);
+}
+
+.dcc-divider {
+    border-color: var(--panel-border);
+}
+
+/* Custom scrollbar for panels */
+.dcc-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.dcc-scroll::-webkit-scrollbar-track { background: transparent; }
+.dcc-scroll::-webkit-scrollbar-thumb {
+    background: var(--panel-border);
+    border-radius: 4px;
+}
+.dcc-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--dcc-orange);
+}
+
+/* Orange focus ring */
+.dcc-focus:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--dcc-orange);
+}
+
+/* Kbd chips */
+kbd, .kbd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--panel-bg-raised);
+    border: 1px solid var(--panel-border);
+    color: var(--text-mid);
+}
+
+/* Selection */
+::selection { background: var(--dcc-orange); color: #fff; }
+
+/* pulse for active landmark */
+@keyframes dcc-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.7); }
+    50% { box-shadow: 0 0 0 6px rgba(249, 115, 22, 0.0); }
+}
+.dcc-pulse { animation: dcc-pulse 1.6s ease-in-out infinite; }
+
+/* subtle grid overlay for panels */
+.dcc-tech-bg {
+    background-image:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 24px 24px;
+}
+
+@layer base {
+    * { @apply border-border; }
+    body { @apply bg-background text-foreground; }
+}
+
+@layer base {
+    [data-debug-wrapper="true"] { display: contents !important; }
+    [data-debug-wrapper="true"] > * {
+        margin-left: inherit; margin-right: inherit; margin-top: inherit; margin-bottom: inherit;
+        padding-left: inherit; padding-right: inherit; padding-top: inherit; padding-bottom: inherit;
+        column-gap: inherit; row-gap: inherit; gap: inherit;
+        border-left-width: inherit; border-right-width: inherit; border-top-width: inherit; border-bottom-width: inherit;
+        border-left-style: inherit; border-right-style: inherit; border-top-style: inherit; border-bottom-style: inherit;
+        border-left-color: inherit; border-right-color: inherit; border-top-color: inherit; border-bottom-color: inherit;
+    }
+}

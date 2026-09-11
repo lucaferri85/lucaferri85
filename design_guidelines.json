@@ -1,0 +1,375 @@
+{
+  "project_name": "UE5 Quinn Auto-Rigger Pro",
+  "app_type": "hybrid_fullstack_dcc",
+  "design_philosophy": {
+    "aesthetic": "Tactical DCC Industrial — Blender-meets-Unreal Engine 5 Dark Workspace",
+    "theme": "Dark Charcoal / Slate / Technical Gunmetal with Blender Kinetic Amber-Orange accents and Unreal Electric Cyan highlights",
+    "emotional_tone": "Precise, surgical, authoritative 3D technical tooling for game animators and technical artists",
+    "core_principles": [
+      "Zero visual fluff: maximum contrast and screen real-estate for the 3D viewport",
+      "Immediate anatomical feedback with distinct 3D landmark color standards",
+      "Exact Unreal Engine 5 Quinn mannequin bone hierarchy fidelity (root, pelvis, spine_01..05, clavicles, twists, IK roots, 5 fingers per hand)",
+      "Continuous tactile workflow navigation (stages 1 to 6) anchored at the bottom with shortcut-ready tactile ergonomics"
+    ]
+  },
+  "typography": {
+    "font_pairings": {
+      "headings_and_display": "Chivo, 'Cabinet Grotesk', system-ui, sans-serif",
+      "ui_body": "IBM Plex Sans, -apple-system, sans-serif",
+      "technical_metrics_and_bones": "'JetBrains Mono', 'IBM Plex Mono', 'Source Code Pro', monospace"
+    },
+    "scale": {
+      "h1": "text-2xl sm:text-3xl font-bold tracking-tight uppercase text-zinc-100",
+      "h2": "text-lg sm:text-xl font-semibold tracking-normal text-zinc-200",
+      "h3": "text-sm sm:text-base font-semibold tracking-wide text-zinc-300",
+      "label": "text-[11px] font-mono uppercase tracking-[0.16em] text-zinc-400",
+      "metric": "text-xs font-mono font-medium text-amber-400",
+      "body": "text-xs sm:text-sm font-normal text-zinc-300 leading-relaxed"
+    },
+    "rules": [
+      "Banned fonts: Inter, Roboto, Open Sans for headings",
+      "All bone names (e.g. spine_03, upperarm_twist_01_l, ik_hand_root) MUST be rendered in JetBrains Mono font with lowercase formatting matching UE5 specs",
+      "Headings must use tight tracking and uppercase industrial styling"
+    ]
+  },
+  "colors": {
+    "theme_mode": "dark",
+    "palette": {
+      "viewport_background": "#121316",
+      "viewport_grid_major": "#262830",
+      "viewport_grid_minor": "#1c1d22",
+      "panel_bg_deep": "#16171b",
+      "panel_bg_surface": "#1e2025",
+      "panel_bg_raised": "#252830",
+      "panel_border": "#2e323b",
+      "panel_border_subtle": "#22252c",
+      "primary_orange": "#ea580c",
+      "primary_orange_glow": "#f97316",
+      "primary_orange_hover": "#fb923c",
+      "ue5_cyan": "#0ea5e9",
+      "ue5_cyan_glow": "#38bdf8",
+      "text_high_contrast": "#f4f4f5",
+      "text_muted": "#a1a1aa",
+      "text_faint": "#71717a"
+    },
+    "anatomical_marker_colors": {
+      "center_landmarks": {
+        "hex": "#ffffff",
+        "description": "Pure Titanium White (Head Top, Head Center, Neck Base, Chest, Spine 01-05, Pelvis)",
+        "viewport_glow": "rgba(255, 255, 255, 0.45)"
+      },
+      "left_side_landmarks": {
+        "hex": "#38bdf8",
+        "description": "Cyan Blue (Left Clavicle, Shoulder, Elbow, Wrist, Hand, Hip, Knee, Ankle, Ball, Heel)",
+        "viewport_glow": "rgba(56, 189, 248, 0.45)"
+      },
+      "right_side_landmarks": {
+        "hex": "#ef4444",
+        "description": "Signal Red / Crimson (Right Clavicle, Shoulder, Elbow, Wrist, Hand, Hip, Knee, Ankle, Ball, Heel)",
+        "viewport_glow": "rgba(239, 68, 68, 0.45)"
+      },
+      "finger_landmarks": {
+        "hex": "#eab308",
+        "description": "Amber Gold (Thumb, Index, Middle, Ring, Pinky metacarpal to tip joints)",
+        "viewport_glow": "rgba(234, 179, 8, 0.45)"
+      },
+      "active_selection": {
+        "hex": "#f97316",
+        "description": "Blender Radiant Orange pulsing ring or highlight for the active landmark being placed/edited"
+      },
+      "skeleton_bone_lines": {
+        "standard_chain": "#10b981",
+        "twist_bones": "#a855f7",
+        "ik_root_and_effectors": "#06b6d4",
+        "joint_nodes": "#f8fafc"
+      }
+    }
+  },
+  "layout_and_workspace_structure": {
+    "viewport_dcc_layout": {
+      "header_height": "h-12",
+      "footer_nav_height": "h-14",
+      "left_sidebar_width": "w-72 lg:w-80",
+      "right_sidebar_width": "w-80 lg:w-96",
+      "center_viewport": "flex-1 relative overflow-hidden bg-[#121316]"
+    },
+    "panel_division": {
+      "top_header": {
+        "content": "UE5 Quinn Auto-Rigger branding, Active Project selector/Save badge, Transform Gizmo Mode switcher (Translate/Rotate), Wireframe toggle, X-Ray toggle, Symmetry Mode toggle & Axis (X/Y/Z), Viewport Reset, Shading preset (Solid Clay, Wireframe, Ghost/X-Ray, Normal Inspection)",
+        "styling": "border-b border-[#2e323b] bg-[#16171b] px-4 flex items-center justify-between text-xs"
+      },
+      "left_panel": {
+        "title": "Mesh & Assets Control",
+        "sections": [
+          "Project Manager (Load / Save / Quick Save to MongoDB)",
+          "Mesh Import Drag-Drop Zone supporting GLB, GLTF, FBX, OBJ",
+          "Mesh Transform & Bounds Inspector (Poly count, Vertex count, Scale normalization, Center to Origin)",
+          "Skeleton Preset & JSON Template Loader (Quinn Mannequin UE5 default loaded, with custom JSON import)",
+          "Symmetry & Alignment Settings (Mirror Axis X/Y/Z, Auto-snap threshold)"
+        ]
+      },
+      "center_panel": {
+        "title": "3D Interactive Viewport (Three.js)",
+        "elements": [
+          "Floating Viewport Gizmo HUD: Camera view buttons (Front [Num 1], Right [Num 3], Top [Num 7], Perspective / Ortho toggle)",
+          "Overlay Shading Pills (Matcap Clay, Wireframe, Bone X-Ray)",
+          "Active Interactive 3D Canvas with OrbitControls, TransformControls for dragging landmark spheres",
+          "Landmark placement raycaster on mesh surface with crosshair visual indicator",
+          "Skeleton Bone lines visualizer overlay (draws bone pyramid sticks/lines between fitted joints)",
+          "Floating Quick-Help / Shortcut legend chip ('RMB: Orbit | MMB: Pan | Click: Place Landmark | G: Grab')"
+        ]
+      },
+      "right_panel": {
+        "title": "Landmark Director & Quinn Bone Hierarchy",
+        "tabs": ["Landmarks (Guided List)", "UE5 Quinn Bones (Tree)", "Rig Diagnostics"],
+        "content_landmarks": "Step-by-step sequential landmark queue with placed/pending badges, 3D coordinate chips [X, Y, Z], manual coordinate tuning inputs, Jump to Camera focus button, Re-place button, Symmetry mirror button",
+        "content_skeleton_tree": "Full hierarchical tree view of SKM_Quinn bones: root -> pelvis -> spine_01..05 -> neck_01..02 -> head, clavicles, limbs with twist bones (upperarm_twist_01_l/r, lowerarm_twist_01_l/r, thigh_twist_01_l/r, calf_twist_01_l/r), hand finger chains (thumb_01..03, index_01..03, etc.), and IK chains (ik_foot_root, ik_foot_l, ik_hand_root, ik_hand_l)",
+        "content_diagnostics": "Real-time verification checklist (Mesh manifold status, scale unit test, Quinn proportion fit score, bone symmetry delta)"
+      },
+      "bottom_stage_bar": {
+        "title": "Workflow Stage Director",
+        "stages": [
+          {"id": "import", "step": "01", "name": "IMPORT MESH", "desc": "Load GLB/FBX/OBJ & normalize scale"},
+          {"id": "landmarks", "step": "02", "name": "PLACE LANDMARKS", "desc": "Define anatomical anchor points"},
+          {"id": "skeleton", "step": "03", "name": "FIT SKELETON", "desc": "Solve Quinn template to markers"},
+          {"id": "skinning", "step": "04", "name": "HEATMAP SKINNING", "desc": "Compute linear blend skin weights"},
+          {"id": "validation", "step": "05", "name": "UE5 VALIDATE", "desc": "Verify bone names, roll & hierarchy"},
+          {"id": "export", "step": "06", "name": "EXPORT RIG", "desc": "Export UE5-compatible GLTF/JSON/FBX"}
+        ],
+        "styling": "border-t border-[#2e323b] bg-[#16171b] px-3 py-2 flex items-center justify-between"
+      }
+    }
+  },
+  "ue5_quinn_skeleton_specifications": {
+    "root_bone": "root",
+    "pelvis": "pelvis",
+    "spine_chain": ["spine_01", "spine_02", "spine_03", "spine_04", "spine_05"],
+    "head_chain": ["neck_01", "neck_02", "head"],
+    "arms_left": {
+      "clavicle": "clavicle_l",
+      "upperarm": "upperarm_l",
+      "upperarm_twist": "upperarm_twist_01_l",
+      "lowerarm": "lowerarm_l",
+      "lowerarm_twist": "lowerarm_twist_01_l",
+      "hand": "hand_l",
+      "fingers": {
+        "thumb": ["thumb_01_l", "thumb_02_l", "thumb_03_l"],
+        "index": ["index_01_l", "index_02_l", "index_03_l"],
+        "middle": ["middle_01_l", "middle_02_l", "middle_03_l"],
+        "ring": ["ring_01_l", "ring_02_l", "ring_03_l"],
+        "pinky": ["pinky_01_l", "pinky_02_l", "pinky_03_l"]
+      }
+    },
+    "arms_right": {
+      "clavicle": "clavicle_r",
+      "upperarm": "upperarm_r",
+      "upperarm_twist": "upperarm_twist_01_r",
+      "lowerarm": "lowerarm_r",
+      "lowerarm_twist": "lowerarm_twist_01_r",
+      "hand": "hand_r",
+      "fingers": {
+        "thumb": ["thumb_01_r", "thumb_02_r", "thumb_03_r"],
+        "index": ["index_01_r", "index_02_r", "index_03_r"],
+        "middle": ["middle_01_r", "middle_02_r", "middle_03_r"],
+        "ring": ["ring_01_r", "ring_02_r", "ring_03_r"],
+        "pinky": ["pinky_01_r", "pinky_02_r", "pinky_03_r"]
+      }
+    },
+    "legs_left": {
+      "thigh": "thigh_l",
+      "thigh_twist": "thigh_twist_01_l",
+      "calf": "calf_l",
+      "calf_twist": "calf_twist_01_l",
+      "foot": "foot_l",
+      "ball": "ball_l"
+    },
+    "legs_right": {
+      "thigh": "thigh_r",
+      "thigh_twist": "thigh_twist_01_r",
+      "calf": "calf_r",
+      "calf_twist": "calf_twist_01_r",
+      "foot": "foot_r",
+      "ball": "ball_r"
+    },
+    "ik_chains": [
+      {"name": "ik_foot_root", "parent": "root"},
+      {"name": "ik_foot_l", "parent": "ik_foot_root"},
+      {"name": "ik_foot_r", "parent": "ik_foot_root"},
+      {"name": "ik_hand_root", "parent": "root"},
+      {"name": "ik_hand_gun", "parent": "ik_hand_root"},
+      {"name": "ik_hand_l", "parent": "ik_hand_gun"},
+      {"name": "ik_hand_r", "parent": "ik_hand_gun"}
+    ]
+  },
+  "key_landmarks_definition": [
+    {"id": "head_top", "label": "Head Top", "group": "center", "color": "#ffffff", "bone_target": "head", "default_pos": [0, 1.82, 0]},
+    {"id": "head_center", "label": "Head Center", "group": "center", "color": "#ffffff", "bone_target": "head", "default_pos": [0, 1.70, 0.03]},
+    {"id": "neck_base", "label": "Neck Base", "group": "center", "color": "#ffffff", "bone_target": "neck_01", "default_pos": [0, 1.55, -0.01]},
+    {"id": "chest", "label": "Chest", "group": "center", "color": "#ffffff", "bone_target": "spine_04", "default_pos": [0, 1.38, 0.02]},
+    {"id": "spine_mid", "label": "Spine Mid", "group": "center", "color": "#ffffff", "bone_target": "spine_02", "default_pos": [0, 1.20, -0.01]},
+    {"id": "pelvis", "label": "Pelvis", "group": "center", "color": "#ffffff", "bone_target": "pelvis", "default_pos": [0, 1.02, -0.02]},
+    {"id": "clavicle_l", "label": "Left Clavicle", "group": "left", "color": "#38bdf8", "bone_target": "clavicle_l", "default_pos": [0.08, 1.48, 0.01]},
+    {"id": "shoulder_l", "label": "Left Shoulder", "group": "left", "color": "#38bdf8", "bone_target": "upperarm_l", "default_pos": [0.22, 1.45, -0.01]},
+    {"id": "elbow_l", "label": "Left Elbow", "group": "left", "color": "#38bdf8", "bone_target": "lowerarm_l", "default_pos": [0.46, 1.28, -0.05]},
+    {"id": "wrist_l", "label": "Left Wrist", "group": "left", "color": "#38bdf8", "bone_target": "hand_l", "default_pos": [0.68, 1.15, -0.02]},
+    {"id": "hand_l", "label": "Left Hand Tip", "group": "left", "color": "#38bdf8", "bone_target": "middle_02_l", "default_pos": [0.80, 1.08, -0.01]},
+    {"id": "clavicle_r", "label": "Right Clavicle", "group": "right", "color": "#ef4444", "bone_target": "clavicle_r", "default_pos": [-0.08, 1.48, 0.01]},
+    {"id": "shoulder_r", "label": "Right Shoulder", "group": "right", "color": "#ef4444", "bone_target": "upperarm_r", "default_pos": [-0.22, 1.45, -0.01]},
+    {"id": "elbow_r", "label": "Right Elbow", "group": "right", "color": "#ef4444", "bone_target": "lowerarm_r", "default_pos": [-0.46, 1.28, -0.05]},
+    {"id": "wrist_r", "label": "Right Wrist", "group": "right", "color": "#ef4444", "bone_target": "hand_r", "default_pos": [-0.68, 1.15, -0.02]},
+    {"id": "hand_r", "label": "Right Hand Tip", "group": "right", "color": "#ef4444", "bone_target": "middle_02_r", "default_pos": [-0.80, 1.08, -0.01]},
+    {"id": "hip_l", "label": "Left Hip", "group": "left", "color": "#38bdf8", "bone_target": "thigh_l", "default_pos": [0.12, 0.98, -0.02]},
+    {"id": "knee_l", "label": "Left Knee", "group": "left", "color": "#38bdf8", "bone_target": "calf_l", "default_pos": [0.13, 0.54, 0.02]},
+    {"id": "ankle_l", "label": "Left Ankle", "group": "left", "color": "#38bdf8", "bone_target": "foot_l", "default_pos": [0.14, 0.12, -0.04]},
+    {"id": "heel_l", "label": "Left Heel", "group": "left", "color": "#38bdf8", "bone_target": "foot_l", "default_pos": [0.14, 0.08, -0.12]},
+    {"id": "toe_l", "label": "Left Toe / Ball", "group": "left", "color": "#38bdf8", "bone_target": "ball_l", "default_pos": [0.14, 0.04, 0.12]},
+    {"id": "hip_r", "label": "Right Hip", "group": "right", "color": "#ef4444", "bone_target": "thigh_r", "default_pos": [-0.12, 0.98, -0.02]},
+    {"id": "knee_r", "label": "Right Knee", "group": "right", "color": "#ef4444", "bone_target": "calf_r", "default_pos": [-0.13, 0.54, 0.02]},
+    {"id": "ankle_r", "label": "Right Ankle", "group": "right", "color": "#ef4444", "bone_target": "foot_r", "default_pos": [-0.14, 0.12, -0.04]},
+    {"id": "heel_r", "label": "Right Heel", "group": "right", "color": "#ef4444", "bone_target": "foot_r", "default_pos": [-0.14, 0.08, -0.12]},
+    {"id": "toe_r", "label": "Right Toe / Ball", "group": "right", "color": "#ef4444", "bone_target": "ball_r", "default_pos": [-0.14, 0.04, 0.12]},
+    {"id": "thumb_tip_l", "label": "Left Thumb", "group": "fingers", "color": "#eab308", "bone_target": "thumb_03_l", "default_pos": [0.73, 1.12, 0.04]},
+    {"id": "index_tip_l", "label": "Left Index", "group": "fingers", "color": "#eab308", "bone_target": "index_03_l", "default_pos": [0.79, 1.10, 0.02]},
+    {"id": "thumb_tip_r", "label": "Right Thumb", "group": "fingers", "color": "#eab308", "bone_target": "thumb_03_r", "default_pos": [-0.73, 1.12, 0.04]},
+    {"id": "index_tip_r", "label": "Right Index", "group": "fingers", "color": "#eab308", "bone_target": "index_03_r", "default_pos": [-0.79, 1.10, 0.02]}
+  ],
+  "sample_meshes_and_presets": [
+    {
+      "id": "quinn_female_sample",
+      "name": "UE5 Quinn Archetype (A-Pose)",
+      "format": "GLB/GLTF",
+      "vertex_count": "18,420",
+      "faces": "36,200",
+      "height_cm": 175.0,
+      "thumbnail": "https://images.unsplash.com/photo-1554109394-7e351053be0d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwyfHwzZCUyMGNoYXJhY3RlciUyMGh1bWFub2lkJTIwbWVzaHxlbnwwfHx8fDE3ODkxMTE5ODZ8MA&ixlib=rb-4.1.0&q=85"
+    },
+    {
+      "id": "stylized_hero_sample",
+      "name": "Cyber Warrior Humanoid (T-Pose)",
+      "format": "OBJ",
+      "vertex_count": "12,180",
+      "faces": "24,100",
+      "height_cm": 182.5,
+      "thumbnail": "https://images.unsplash.com/photo-1675897634504-bf03f1a2a66a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHw0fHwzZCUyMGNoYXJhY3RlciUyMGh1bWFub2lkJTIwbWVzaHxlbnwwfHx8fDE3ODkxMTE5ODZ8MA&ixlib=rb-4.1.0&q=85"
+    }
+  ],
+  "image_urls": [
+    {
+      "category": "character_preset_quinn",
+      "description": "Female humanoid mannequin reference figure in clean grey studio lighting",
+      "image_url": "https://images.unsplash.com/photo-1554109394-7e351053be0d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwyfHwzZCUyMGNoYXJhY3RlciUyMGh1bWFub2lkJTIwbWVzaHxlbnwwfHx8fDE3ODkxMTE5ODZ8MA&ixlib=rb-4.1.0&q=85"
+    },
+    {
+      "category": "character_preset_stylized",
+      "description": "Clean white humanoid head and torso wireframe topology reference",
+      "image_url": "https://images.unsplash.com/photo-1675897634504-bf03f1a2a66a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHw0fHwzZCUyMGNoYXJhY3RlciUyMGh1bWFub2lkJTIwbWVzaHxlbnwwfHx8fDE3ODkxMTE5ODZ8MA&ixlib=rb-4.1.0&q=85"
+    },
+    {
+      "category": "unreal_engine_badge",
+      "description": "Unreal Engine 5 badge icon style graphics",
+      "image_url": "https://images.unsplash.com/photo-1691405167344-c3bbc9710ad2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTB8MHwxfHNlYXJjaHwyfHx1bnJlYWwlMjBlbmdpbmUlMjBsb2dvJTIwc3ltYm9sfGVufDB8fHx8MTc4OTExMTk5MHww&ixlib=rb-4.1.0&q=85"
+    }
+  ],
+  "components_blueprint": {
+    "viewport_canvas": {
+      "path": "src/components/viewport/Viewport3D.js",
+      "features": [
+        "Three.js Canvas with WebGLRenderer, ACESFilmicToneMapping, antialias",
+        "Infinite dual-frequency grid floor with subtle axis markers (X red, Z blue)",
+        "Mesh renderer supporting procedurally generated humanoid dummy + user loaded GLB/GLTF/OBJ/FBX geometries",
+        "Custom Transform Gizmo integration for dragging landmark spheres in 3D space",
+        "Dynamic Camera Views (Front, Right, Top, Back, Isometric Perspective, True Orthographic)",
+        "Symmetry indicator plane (semi-transparent X=0 plane togglable)",
+        "Bone segment visualizer (Lines and 3D octahedrons connecting fitted bones according to Quinn hierarchy)"
+      ]
+    },
+    "landmark_manager": {
+      "path": "src/components/landmarks/LandmarkDirector.js",
+      "features": [
+        "Step-by-step active placement cursor mode",
+        "Interactive landmark rows with status pills: [PLACED, PENDING, ACTIVE]",
+        "Symmetry mirror trigger (copies Left markers to Right with inverted X coordinate)",
+        "Undo / Redo stack tracker with hotkey listener (Ctrl+Z / Ctrl+Y)",
+        "Numerical coordinate editors with fine stepper [+/- 0.01m]"
+      ]
+    },
+    "skeleton_viewer": {
+      "path": "src/components/skeleton/SkeletonHierarchyTree.js",
+      "features": [
+        "Collapsible tree view matching exact UE5 SKM_Quinn bone tree",
+        "Search filter for instant bone lookup (e.g. twist, ik, spine, thumb)",
+        "Bone details inspector showing parent, children, roll angle, and computed transform position",
+        "JSON Skeleton Schema importer/uploader modal with schema validation"
+      ]
+    },
+    "project_and_mesh_bar": {
+      "path": "src/components/panels/MeshProjectPanel.js",
+      "features": [
+        "Named Project selector, Create New Project, and Save/Load to MongoDB via FastAPI backend",
+        "Drag & Drop 3D mesh file uploader supporting GLB, GLTF, FBX, OBJ with file validation",
+        "Mesh diagnostic summary: Polygon count, bounds in meters, vertex normal health",
+        "One-click sample character loader for instantaneous testing without needing an external FBX file"
+      ]
+    },
+    "workflow_navigation": {
+      "path": "src/components/workflow/StageNavigator.js",
+      "features": [
+        "6 Interactive breadcrumb stages with status indicators (Completed, In Progress, Ready)",
+        "Stage progression gating with clear validation requirements",
+        "Next Step primary action button with contextual instructions",
+        "Quick export launcher for UE5 ready asset package"
+      ]
+    }
+  },
+  "interactive_and_test_attributes": {
+    "rule": "Every button, input, toggle, select, and key metric MUST have an explicit data-testid attribute in kebab-case",
+    "mandatory_data_testids": [
+      "app-header",
+      "project-name-input",
+      "project-save-button",
+      "project-load-button",
+      "undo-button",
+      "redo-button",
+      "mesh-upload-dropzone",
+      "mesh-format-selector",
+      "load-sample-mesh-btn",
+      "viewport-3d-container",
+      "viewport-view-front-btn",
+      "viewport-view-right-btn",
+      "viewport-view-top-btn",
+      "viewport-projection-toggle",
+      "viewport-wireframe-toggle",
+      "viewport-xray-toggle",
+      "viewport-skeleton-toggle",
+      "symmetry-toggle",
+      "symmetry-axis-select",
+      "landmark-row-*",
+      "landmark-item-active",
+      "place-landmark-btn",
+      "reset-landmarks-btn",
+      "auto-fit-skeleton-btn",
+      "skeleton-json-upload-btn",
+      "skeleton-tree-search-input",
+      "stage-nav-import",
+      "stage-nav-landmarks",
+      "stage-nav-skeleton",
+      "stage-nav-skinning",
+      "stage-nav-validation",
+      "stage-nav-export",
+      "workflow-next-step-btn",
+      "export-ue5-rig-btn",
+      "toast-notification"
+    ]
+  },
+  "instructions_to_main_agent": [
+    "1. Read this entire design_guidelines.json carefully before writing code.",
+    "2. All files are standard JavaScript (.js / .jsx), NOT .tsx. Never use TypeScript types or interfaces in the React files.",
+    "3. Set up Three.js with loaders (GLTFLoader, OBJLoader) and ensure OrbitControls and 3D landmark picking work reliably.",
+    "4. Use the exact UE5 Quinn bone hierarchy names specified in 'ue5_quinn_skeleton_specifications' - this is a core requirement of the user.",
+    "5. Provide a built-in sample character mesh (Quinn mannequin dummy) that renders immediately on launch so the user doesn't have to hunt for an FBX file to start testing.",
+    "6. Ensure the UI feels like a top-tier desktop DCC application: compact dark theme, dark charcoal panels (#16171b, #1e2025), crisp 1px borders (#2e323b), Blender-amber highlights (#ea580c / #f97316), and clear anatomical landmark color coding (white center, cyan left, red right, yellow fingers).",
+    "7. Include MongoDB persistence endpoints in the FastAPI backend (/api/projects, /api/projects/{id}) to save and reload landmark positions and project configurations.",
+    "8. Add Sonner toast notifications for actions like Landmark placed, Project saved, Symmetry mirrored, Skeleton fitted, and Export generated.",
+    "9. Strictly respect data-testid attributes on all interactive elements as cataloged in this specification."
+  ]
+}
