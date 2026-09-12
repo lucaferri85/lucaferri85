@@ -51,13 +51,6 @@ const STAGES = [
   },
 ];
 
-const IMPLEMENTED =
-  new Set([
-    'import',
-    'landmarks',
-    'skeleton',
-  ]);
-
 export default function BottomStageBar() {
   const stage =
     useAppStore(
@@ -89,6 +82,12 @@ export default function BottomStageBar() {
         state.fitted
     );
 
+  const fitApproved =
+    useAppStore(
+      (state) =>
+        state.fitApproved
+    );
+
   const setRightTab =
     useAppStore(
       (state) =>
@@ -103,8 +102,7 @@ export default function BottomStageBar() {
     );
 
   const coreReady =
-    coreLandmarks.length >
-      0 &&
+    coreLandmarks.length > 0 &&
     coreLandmarks.every(
       (landmark) =>
         landmark.placed
@@ -112,17 +110,13 @@ export default function BottomStageBar() {
 
   const statusFor =
     (id) => {
-      if (
-        id === 'import'
-      ) {
+      if (id === 'import') {
         return meshLoaded
           ? 'done'
           : 'active';
       }
 
-      if (
-        id === 'landmarks'
-      ) {
+      if (id === 'landmarks') {
         return coreReady
           ? 'done'
           : meshLoaded
@@ -130,9 +124,7 @@ export default function BottomStageBar() {
           : 'locked';
       }
 
-      if (
-        id === 'skeleton'
-      ) {
+      if (id === 'skeleton') {
         return fitted
           ? 'done'
           : coreReady
@@ -140,11 +132,13 @@ export default function BottomStageBar() {
           : 'locked';
       }
 
-      return IMPLEMENTED.has(
-        id
-      )
-        ? 'ready'
-        : 'planned';
+      if (id === 'skinning') {
+        return fitApproved
+          ? 'ready'
+          : 'locked';
+      }
+
+      return 'locked';
     };
 
   const currentIndex =
@@ -153,6 +147,32 @@ export default function BottomStageBar() {
         item.id ===
         stage
     );
+
+  const navigate =
+    (id) => {
+      const status =
+        statusFor(id);
+
+      if (status === 'locked') {
+        return;
+      }
+
+      setStage(id);
+
+      if (id === 'landmarks') {
+        setRightTab(
+          'landmarks'
+        );
+      } else if (id === 'skeleton') {
+        setRightTab(
+          'fit'
+        );
+      } else if (id === 'skinning') {
+        setRightTab(
+          'skinning'
+        );
+      }
+    };
 
   return (
     <div
@@ -177,11 +197,8 @@ export default function BottomStageBar() {
             currentIndex;
 
           const clickable =
-            IMPLEMENTED.has(
-              item.id
-            ) &&
             status !==
-              'locked';
+            'locked';
 
           return (
             <button
@@ -189,35 +206,11 @@ export default function BottomStageBar() {
                 item.id
               }
               data-testid={`stage-nav-${item.id}`}
-              onClick={() => {
-                if (
-                  !clickable
-                ) {
-                  return;
-                }
-
-                setStage(
+              onClick={() =>
+                navigate(
                   item.id
-                );
-
-                if (
-                  item.id ===
-                  'skeleton'
-                ) {
-                  setRightTab(
-                    'fit'
-                  );
-                }
-
-                if (
-                  item.id ===
-                  'landmarks'
-                ) {
-                  setRightTab(
-                    'landmarks'
-                  );
-                }
-              }}
+                )
+              }
               disabled={
                 !clickable
               }
@@ -237,10 +230,19 @@ export default function BottomStageBar() {
                   background:
                     isCurrent
                       ? 'var(--dcc-orange)'
+                      : item.id ===
+                          'skinning' &&
+                        fitApproved
+                      ? 'var(--dcc-emerald)'
                       : 'var(--panel-bg-raised)',
 
                   color:
-                    isCurrent
+                    isCurrent ||
+                    (
+                      item.id ===
+                        'skinning' &&
+                      fitApproved
+                    )
                       ? '#fff'
                       : 'var(--text-mid)',
                 }}
@@ -263,6 +265,10 @@ export default function BottomStageBar() {
                     color:
                       isCurrent
                         ? 'var(--dcc-orange-glow)'
+                        : item.id ===
+                            'skinning' &&
+                          fitApproved
+                        ? 'var(--dcc-emerald)'
                         : 'var(--text-high)',
                   }}
                 >
