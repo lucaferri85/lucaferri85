@@ -29,23 +29,34 @@ export async function importTemplateFBX(file) {
       toast.error(`FBX skeleton has ${diag.errors.length} error(s) — see Template tab`, { id: t });
     }
     store.setTemplate(template, 'user_authoritative', null, null);
-    const validation = await runValidation(template);
+    useAppStore.setState({ templateImportError: null });
+    // the parsed skeleton is authoritative from here on; validation / library persistence failures are reported, never a fallback
+    let validation = null;
+    try { validation = await runValidation(template); }
+    catch (e) { toast.warning(`Imported ${template.bones.length} bones, but VALIDATE TEMPLATE STRUCTURE could not reach the server (${e.message}) — run it again from the Template tab`, { duration: 12000 }); }
     let savedId = null;
-    try {
-      const saved = await api.saveTemplate(template, validation);
-      savedId = saved.id;
-      store.setTemplateSavedId(savedId);
-      rememberActiveTemplate(savedId);
-    } catch (e) {
-      toast.warning('Template parsed but could not be saved to library');
+    for (let attempt = 0; attempt < 2 && !savedId; attempt++) {
+      try {
+        const saved = await api.saveTemplate(template, validation);
+        savedId = saved.id;
+        store.setTemplateSavedId(savedId);
+        rememberActiveTemplate(savedId);
+      } catch (e) {
+        if (attempt === 1) {
+          useAppStore.setState({ templateImportError: { file: file.name, message: `Parsed ${template.bones.length} bones but the template could not be saved to the server library (${e.message}). It is active now but will NOT survive a page reload — save the project or import again.`, at: new Date().toISOString() } });
+          toast.error('Template could not be saved to the library — it will not survive a reload', { duration: 15000 });
+        }
+      }
     }
     if (!diag.errors.length) {
-      toast.success(`Imported ${template.bones.length} bones from FBX · validation: ${validation.status.toUpperCase()}`, { id: t });
+      toast.success(`Imported ${template.bones.length} bones from FBX · validation: ${validation ? validation.status.toUpperCase() : 'PENDING'}`, { id: t });
     }
     return { template, validation, savedId };
   } catch (e) {
     console.error(e);
-    toast.error(`FBX parse failed: ${e.message}`, { id: t });
+    const msg = `IMPORT QUINN FBX failed: ${e.message}. Nothing was replaced — the previously active template stays as it was. Fix the export and import again.`;
+    useAppStore.setState({ templateImportError: { file: file.name, message: e.message, at: new Date().toISOString() } });
+    toast.error(msg, { id: t, duration: 15000 });
     throw e;
   } finally {
     store.setTemplateImporting(false);
@@ -91,12 +102,21 @@ export function rememberActiveTemplate(id) { try { if (id) localStorage.setItem(
 
 /** On startup: restore the last imported authoritative template from the server library instead of silently
  *  falling back to the DEVELOPMENT / SAMPLE skeleton after a page reload. */
+let restoreStarted = false;
 export async function restoreActiveTemplate() {
+  if (restoreStarted) return null; restoreStarted = true;
   let id = null;
-  try { id = localStorage.getItem(ACTIVE_KEY); } catch { return null; }
+  try { id = localStorage.getItem(ACTIVE_KEY); } catch { /* storage unavailable */ }
   const s = useAppStore.getState();
-  if (!id || s.templateSource !== 'sample_dev') return null;
+  if (s.templateSource !== 'sample_dev') return null;
   try {
+    if (!id) {
+      // no local hint (new browser / origin): the server library is the persistent source — most recent authoritative import wins
+      const lib = await api.listTemplates();
+      const auth = (lib || []).filter(t => t.source === 'user_authoritative').sort((a, b) => String(b.imported_at || b.created_at).localeCompare(String(a.imported_at || a.created_at)))[0];
+      if (!auth) return null;
+      id = auth.id;
+    }
     const saved = await loadTemplateFromLibrary(id, { quiet: true });
     toast.success(`Restored authoritative template: ${saved.name} · ${saved.bone_count || saved.template_data?.bones?.length} bones`);
     return saved;

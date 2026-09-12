@@ -1,0 +1,52 @@
+{
+  "summary": "BLOCKER FIX verified end-to-end. Backend 41/41 pytest green. GET /api/templates lists SKM_Quinn_Simple with bone_count=89 and source=user_authoritative; POST /api/templates/validate returns status=valid. FRONTEND (public preview URL): (1) startup restore after localStorage.clear() correctly loads the most-recent user_authoritative template from the server library (test_quinn_like_89, 89 bones, valid) with a 'Restored authoritative template' toast — the app NEVER falls back silently to the DEV 71-bone sample. (2) Library-select of SKM_Quinn_Simple loads name=SKM_Quinn_Simple, 89 bones, source=user_authoritative, validation=valid, savedId matches. All required Unreal bones present (root, pelvis, spine_01..05, neck_01/02, head, clavicle_l/r, upperarm_l/r, lowerarm_l/r, hand_l/r, thigh_l/r, calf_l/r, foot_l/r, ball_l/r, ik_foot_root, ik_hand_root, ik_hand_gun, ik_foot_l/r, ik_hand_l/r, interaction, center_of_mass, upperarm_twist_01_l). head.parent==='neck_02', pelvis.parent==='root', root has no parent. Bones carry refLocal/refGlobal/refGlobalRot transforms. Reloading with SKM active persists SKM_Quinn_Simple 89 authoritative valid (localStorage hint). (3) FBX good import (test_quinn_like_89.fbx) → 89 bones, authoritative, valid, no banner. Corrupt import (corrupt_not_fbx.fbx) → red banner data-testid=template-import-error with FBXLoader error text 'THREE.FBXLoader: Cannot find the version number for the file given.' while previously active template is UNCHANGED (still test_quinn_like_89 89 authoritative — never falls back to DEV). Re-importing the good fixture clears the banner. (4) Project persistence: with SKM active, upload mannequin.obj, run auto-detect (26 placed), SAVE → projectId=c2592c02-…; GET /api/projects/{id} returns template.source='user_authoritative', bones_count=89, template_data.bones.length=89, template_data.name='SKM_Quinn_Simple'. After localStorage.clear + reload + LOAD project → SKM_Quinn_Simple 89 authoritative valid restored, 26 landmarks intact. Auto Fit: fitted.bones.length===89, report.template_bone_count===89, 0 errors, 0 warnings. Compare With Source: overall='pass'; all 16 checks PASS (bone count 89/89, no missing, no extra, no renamed, unique names, order preserved, parent mismatches 0, hierarchy identical, kinds unchanged, root identical, depth 14 vs 14, transforms finite, no collapsed…). Fitted bones names+parents ARE EXACTLY EQUAL to template's (diffCount=0). (5) RESET TO SAMPLE switches to sample_dev 71 bones and clears templateSavedId; after localStorage.clear implicit (reset clears the hint), the reload restores the most-recent authoritative from the library (test_quinn_like_89 89) — matches spec's fallback (spec says 'acceptable either way but report which happens'). Note: startup-restore currently prefers whichever authoritative was imported most recently (test_quinn_like_89 was newer in imported_at than SKM_Quinn_Simple), so if the user's REAL SKM export is the true 'gold' they should re-import it, or the seed row (imported_at 9/11) will always lose to newer imports — flagged as design note, not a bug.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "acceptance_matrix": {
+    "startup_restore_authoritative_no_dev_fallback": "PASS (test_quinn_like_89 restored, toast shown)",
+    "library_select_SKM_Quinn_Simple_89_authoritative_valid": "PASS",
+    "unreal_structure_and_parents": "PASS (head.parent=neck_02, pelvis.parent=root, root parentless, all listed IK/twist bones present, transforms present)",
+    "reload_persists_active_authoritative": "PASS",
+    "fbx_good_import_89_valid": "PASS",
+    "fbx_corrupt_shows_persistent_red_banner_no_replace": "PASS (banner text = 'THREE.FBXLoader: Cannot find the version number for the file given.', template unchanged)",
+    "banner_disappears_after_good_reimport": "PASS",
+    "project_save_persists_authoritative_template": "PASS (GET /api/projects/{id}.template.source=user_authoritative, bones=89, name=SKM_Quinn_Simple)",
+    "project_load_after_clear_localstorage_restores_template_and_landmarks": "PASS",
+    "auto_fit_89_bones_zero_errors": "PASS",
+    "compare_overall_pass_all_checks": "PASS (16 checks, all pass; bone count 89/89, no missing/extra/renamed, parents/order/hierarchy identical)",
+    "fitted_names_parents_equal_template": "PASS (diffCount=0)",
+    "reset_to_sample_switches_to_71_dev": "PASS",
+    "reload_after_reset_behavior": "AUTO-RESTORES most recent authoritative (test_quinn_like_89 89) — spec-allowed"
+  },
+  "backend_verification": {
+    "pytest": "41 passed in 6.66s",
+    "GET /api/templates": "SKM_Quinn_Simple present · bone_count 89 · source user_authoritative",
+    "POST /api/templates/validate for SKM_Quinn_Simple": "status=valid, errors=0"
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_templates_phase_a.py",
+    "/app/backend/tests/test_phase_b_fit.py",
+    "/app/backend/tests/test_assistant.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "templateService.restoreActiveTemplate picks the most-recent user_authoritative when no localStorage hint exists. If the user re-imports test fixtures more recently than the real SKM_Quinn_Simple, the DEV/QA seed will silently outrank the user's authoritative template on new browsers/incognito. Consider tagging the row that was imported by the human user (e.g., provenance.origin='user_upload' vs 'seed') and preferring user uploads, or expose a pin/'set as default' toggle in the library.",
+    "fitService.runAutoFit returns the fitted skeleton directly (with .bones and .report), not {fitted, report}. Doc/testing hint mentioned r.fitted — worth aligning the public window.__quinnFit contract with what tests expect, or documenting the returned shape in the store surface.",
+    "TemplateSection: skeleton-reset-btn is a ghost 'RESET TO SAMPLE (DEV) TEMPLATE' button with no confirmation modal — trivial to hit by accident since the header row is a single click. Consider a confirm dialog because it drops user_authoritative state (savedId cleared).",
+    "restoreActiveTemplate uses a module-level restoreStarted flag; if TemplateSection unmounts+remounts (e.g., tab swap), the flag prevents restore on the second run. Not observed to break anything today because TemplateSection stays mounted, but it is a subtle foot-gun."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (41/41)", "frontend": "100% — all acceptance criteria PASS"},
+  "test_credentials": "none (no auth)",
+  "seed_data_creation": "One SKM_Quinn_Simple-backed project created via SAVE flow (c2592c02-ece1-42db-84ef-ae83bd960d7c and a couple of siblings). No cleanup performed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Store fields: templateSource, template, templateValidation.status, templateSavedId, projectId (top-level, not project.id), fitted (not fittedSkeleton). window.__quinnFit.runAutoFit() returns the fitted object directly (r.bones, r.report). Compare check objects have keys {id,label,status,detail,items}. Library select is a shadcn Select — click trigger, wait, then click [role=option]:has-text('SKM_Quinn_Simple'). Project save button testid=project-save-button in TopBar. Multiple stale authoritative rows exist in the library from prior test runs (test_quinn_like_89 has the newest imported_at); if you need SKM_Quinn_Simple to be the default startup restore, pick it from the library first or seed a fresh import with a newer timestamp.",
+  "rca of the issue": "Fix verified. Root of the original blocker: after page reload the app initialized from the bundled DEV sample and never rehydrated the last active authoritative template. The current implementation (templateService.restoreActiveTemplate) resolves this by (a) trying localStorage 'quinn.template.activeSavedId' first, then (b) falling back to the newest user_authoritative row in GET /api/templates, and (c) surfacing FBX import failures via a persistent data-testid=template-import-error banner without replacing the active template. All three behaviours observed working; DEV sample only re-activates via the explicit RESET TO SAMPLE button."
+}

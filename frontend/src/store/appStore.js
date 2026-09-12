@@ -33,6 +33,7 @@ export const useAppStore = create((set, get) => ({
   template: DEFAULT_QUINN_TEMPLATE,
   templateSource: 'sample_dev', // sample_dev | user_authoritative | user_json
   templateValidation: null,     // detailed result from POST /api/templates/validate
+  templateImportError: null,    // { file, message, at } — last failed IMPORT QUINN FBX, shown until the next successful import
   templateSavedId: null,        // id in MongoDB templates collection
   templateImporting: false,
   selectedBoneName: null,

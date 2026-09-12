@@ -11,6 +11,7 @@ import { importTemplateFBX, importTemplateJSON, runValidation, exportTemplateJSO
 export default function TemplateSection() {
   const template = useAppStore(s => s.template);
   const templateSource = useAppStore(s => s.templateSource);
+  const templateImportError = useAppStore(s => s.templateImportError);
   const templateValidation = useAppStore(s => s.templateValidation);
   const templateSavedId = useAppStore(s => s.templateSavedId);
   const templateImporting = useAppStore(s => s.templateImporting);
@@ -29,7 +30,10 @@ export default function TemplateSection() {
 
   const onFbx = async (file) => {
     if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.fbx')) { toast.error('Authoritative template must be an .fbx exported from Unreal'); return; }
+    if (!file.name.toLowerCase().endsWith('.fbx')) {
+      useAppStore.setState({ templateImportError: { file: file.name, message: 'Not an .fbx file. Export the skeletal mesh / skeleton from Unreal as FBX (see docs/QUINN_EXPORT_GUIDE.md).', at: new Date().toISOString() } });
+      toast.error('Authoritative template must be an .fbx exported from Unreal', { duration: 10000 }); return;
+    }
     try { await importTemplateFBX(file); refreshLibrary(); } catch (e) { /* toasted in service */ }
   };
   const onJson = async (file) => {
@@ -51,6 +55,13 @@ export default function TemplateSection() {
   return (
     <div className="space-y-2.5">
       <TemplateBadge source={templateSource} />
+      {templateImportError && (
+        <div data-testid="template-import-error" className="mt-2 p-2 rounded border text-[10px] leading-snug" style={{ borderColor: 'var(--destructive)', background: 'rgba(239,68,68,0.08)', color: 'var(--text-hi, #e5e7eb)' }}>
+          <div className="dcc-label text-[9px] mb-0.5" style={{ color: 'var(--destructive)' }}>IMPORT QUINN FBX FAILED · {templateImportError.file}</div>
+          {templateImportError.message}
+          <div className="mt-1" style={{ color: 'var(--text-mid)' }}>The template shown below is whatever was active before — it was NOT replaced by the failed import.</div>
+        </div>
+      )}
 
       <div className="dcc-panel-surface rounded p-2.5 space-y-1.5" data-testid="template-metadata-card">
         <Row label="NAME"      value={template.name || '—'} testId="template-meta-name" />
