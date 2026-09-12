@@ -43,6 +43,10 @@ import {
 } from '../../lib/meshStorage';
 
 import {
+  applySavedMeshAlignment,
+} from '../../lib/meshAlignmentService';
+
+import {
   getViewportManager,
 } from '../viewport/viewportBridge';
 
@@ -212,11 +216,12 @@ export default function TopBar() {
             file
           );
 
-        /*
-         * Keep the original persisted metadata / local_asset_id.
-         * restoredInfo is useful only as proof the actual geometry
-         * successfully loaded.
-         */
+        const alignedInfo =
+          applySavedMeshAlignment(
+            manager,
+            mesh.alignment
+          );
+
         useAppStore.setState({
           mesh: {
             ...mesh,
@@ -228,12 +233,15 @@ export default function TopBar() {
               restoredInfo.faces,
 
             height_m:
+              alignedInfo?.height_m ??
               restoredInfo.height_m,
 
             bounds_min:
+              alignedInfo?.bounds_min ??
               restoredInfo.bounds_min,
 
             bounds_max:
+              alignedInfo?.bounds_max ??
               restoredInfo.bounds_max,
           },
 
@@ -427,7 +435,6 @@ export default function TopBar() {
           title="Projects are stored locally on this computer"
         >
           <HardDrive className="w-3 h-3" />
-
           LOCAL
         </span>
       </div>
@@ -507,7 +514,6 @@ export default function TopBar() {
             >
               <span className="dcc-label flex items-center gap-1.5">
                 <HardDrive className="w-3 h-3" />
-
                 LOCAL PROJECTS ·{' '}
                 {
                   projects.length
