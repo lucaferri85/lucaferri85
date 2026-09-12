@@ -1,1 +1,51 @@
 
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - Mannequin
+    paths:
+      - "frontend/**"
+      - ".github/workflows/build-windows-exe.yml"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Yarn
+        run: npm install --global yarn@1.22.22
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Build React application
+        run: yarn build
+        env:
+          CI: "false"
+
+      - name: Build Windows portable EXE
+        run: yarn dist:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: Quinn-Rigger-Windows
+          path: frontend/dist-desktop/*.exe
+          if-no-files-found: error
