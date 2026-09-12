@@ -54,7 +54,26 @@ if '--warrior' in sys.argv:
     cyl((0, 1.88, 0.02), (0, 2.08, 0.02), 0.012, 0.004)
     cyl((-0.80, 0.94, -0.06), (-1.05, 0.30, -0.06), 0.02, 0.012)
     cyl((-0.74, 0.98, -0.06), (-0.86, 0.90, -0.06), 0.03, 0.03)  # crossguard
-name = 'armored_warrior.obj' if '--warrior' in sys.argv else 'armored_tpose.obj' if '--tpose' in sys.argv else 'armored_humanoid.obj'
+def sheet(x0, x1, y0, y1, z, nx=16, ny=40, sag=0.0):
+    base = len(V)
+    for j in range(ny + 1):
+        for i in range(nx + 1):
+            u = i / nx; t = j / ny
+            V.append([x0 + (x1 - x0) * u, y0 + (y1 - y0) * t, z - sag * (1 - (2 * u - 1) ** 2)])
+    for j in range(ny):
+        for i in range(nx):
+            a = base + j * (nx + 1) + i; b = a + 1; c = a + nx + 1; d = c + 1
+            F.append((a, b, d)); F.append((a, d, c))
+if '--cape' in sys.argv:
+    # cloak hanging from the shoulders down to the calves, behind the body (z negative), slightly curved around it
+    sheet(-0.34, 0.34, 0.35, 1.60, -0.24, sag=-0.06)
+if '--tabard' in sys.argv:
+    # cloth panel in front between the thighs, from the belt down to the knees
+    sheet(-0.12, 0.12, 0.55, 1.05, 0.12)
+    sheet(-0.12, 0.12, 0.55, 1.05, -0.12)  # and behind
+suffix = ('_cape' if '--cape' in sys.argv else '') + ('_tabard' if '--tabard' in sys.argv else '')
+name = ('armored_warrior' if '--warrior' in sys.argv else 'armored_tpose' if '--tpose' in sys.argv else 'armored_humanoid') + suffix + '.obj'
+_unused = 'armored_tpose.obj' if '--tpose' in sys.argv else 'armored_humanoid.obj'
 with open(os.path.join(os.path.dirname(__file__), name), 'w') as f:
     for v in V: f.write('v %.4f %.4f %.4f\n' % tuple(v))
     for a, b, c in F: f.write('f %d %d %d\n' % (a + 1, b + 1, c + 1))
