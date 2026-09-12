@@ -1,23 +1,22 @@
 import * as THREE from 'three';
+import {
+  UE_COORDINATE_SYSTEM,
+  legacyPointToUE,
+} from './unrealCoordinateSystem';
 
 /**
- * Quinn Rigger — robust humanoid mesh alignment.
+ * Quinn Rigger — robust humanoid alignment in Unreal coordinates.
  *
- * Viewport convention:
- *   X = left/right
- *   Y = up
- *   Z = depth
+ * Project/world convention:
+ *   X = Forward / Back
+ *   Y = Right / Left
+ *   Z = Up / Down
  *
  * Goal:
- *   - character centered around X = 0
- *   - character centered around Z = 0
- *   - feet resting on Y = 0
- *
- * Percentile bounds are used instead of raw extrema so asymmetric hair,
- * weapons, pouches and detached accessories do not pull the character away
- * from the world origin.
+ *   - character depth centered around X = 0
+ *   - character sagittal centerline on Y = 0
+ *   - feet resting on Z = 0
  */
-
 function quantile(sorted, q) {
   if (!sorted.length) return 0;
 
@@ -64,11 +63,7 @@ function sampleWorldVertices(root, maxPoints = 100000) {
         Number.isFinite(p.y) &&
         Number.isFinite(p.z)
       ) {
-        points.push({
-          x: p.x,
-          y: p.y,
-          z: p.z,
-        });
+        points.push({ x: p.x, y: p.y, z: p.z });
       }
     }
   });
@@ -87,41 +82,42 @@ function computeRobustAlignment(root) {
   const ys = points.map((p) => p.y).sort((a, b) => a - b);
   const zs = points.map((p) => p.z).sort((a, b) => a - b);
 
-  // Ignore outer 5% on X/Z to reduce the effect of one-sided accessories.
+  // Ignore the outer 5% so hair, swords, pouches and armor protrusions do not
+  // pull the body center away from the origin.
   const centerX =
     (quantile(xs, 0.05) + quantile(xs, 0.95)) * 0.5;
 
-  const centerZ =
-    (quantile(zs, 0.05) + quantile(zs, 0.95)) * 0.5;
+  const centerY =
+    (quantile(ys, 0.05) + quantile(ys, 0.95)) * 0.5;
 
   // Ignore isolated stray vertices below the real feet.
-  const floorY = quantile(ys, 0.0025);
+  const floorZ = quantile(zs, 0.0025);
 
   return {
     delta: {
       x: -centerX,
-      y: -floorY,
-      z: -centerZ,
+      y: -centerY,
+      z: -floorZ,
     },
 
     measured_origin: {
       x: centerX,
-      y: floorY,
-      z: centerZ,
+      y: centerY,
+      z: floorZ,
     },
 
     sampled_points: points.length,
+    coordinate_system: UE_COORDINATE_SYSTEM,
   };
 }
 
 function refreshBounds(manager) {
   const bounds = new THREE.Box3().setFromObject(manager.currentMesh);
   const size = new THREE.Vector3();
-
   bounds.getSize(size);
 
   if (manager.controls) {
-    manager.controls.target.set(0, size.y * 0.55, 0);
+    manager.controls.target.set(0, 0, size.z * 0.55);
     manager.controls.update();
   }
 
@@ -138,7 +134,8 @@ function refreshBounds(manager) {
       z: bounds.max.z,
     },
 
-    height_m: size.y,
+    height_m: size.z,
+    coordinate_system: UE_COORDINATE_SYSTEM,
   };
 }
 
@@ -163,17 +160,18 @@ export function centerViewportMesh(manager) {
 }
 
 /**
- * Re-apply the saved robust correction after the original binary mesh has
- * been restored from IndexedDB. ViewportManager.loadMeshFromFile() already
- * performs its base scale/bounds normalization; this reapplies only our extra
- * robust centering correction.
+ * Re-apply a saved alignment after restoring the original binary mesh.
+ * Old Y-up projects are converted automatically on first load.
  */
 export function applySavedMeshAlignment(manager, alignment) {
   if (!manager?.currentMesh || !alignment?.delta) {
     return null;
   }
 
-  const delta = alignment.delta;
+  const delta =
+    alignment.coordinate_system === UE_COORDINATE_SYSTEM
+      ? alignment.delta
+      : legacyPointToUE(alignment.delta);
 
   manager.currentMesh.position.x += Number(delta.x) || 0;
   manager.currentMesh.position.y += Number(delta.y) || 0;

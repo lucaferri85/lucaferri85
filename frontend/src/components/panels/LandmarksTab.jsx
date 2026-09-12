@@ -49,6 +49,10 @@ import {
   canAutoFit,
 } from '../../lib/fitService';
 
+import {
+  constrainCenterlineLandmarkPosition,
+} from '../../lib/unrealCoordinateSystem';
+
 export const CONF = {
   high: {
     label: 'HIGH',
@@ -977,7 +981,10 @@ function LandmarkRow(
 
       onEdit(
         item.id,
-        local
+        constrainCenterlineLandmarkPosition(
+          item.id,
+          local
+        )
       );
 
       setEditing(

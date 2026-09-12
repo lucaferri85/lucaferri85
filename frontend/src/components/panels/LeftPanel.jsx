@@ -640,7 +640,7 @@ export default function LeftPanel() {
             >
               <div className="flex items-center justify-between">
                 <span className="dcc-label">
-                  WORLD ALIGNMENT
+                  WORLD ALIGNMENT · UE AXES
                 </span>
 
                 <span
@@ -726,7 +726,7 @@ export default function LeftPanel() {
 
         <div className="mt-3 flex items-center justify-between">
           <span className="dcc-label">
-            Mirror Axis
+            Mirror Axis · Unreal
           </span>
 
           <Select
@@ -750,16 +750,16 @@ export default function LeftPanel() {
             </SelectTrigger>
 
             <SelectContent className="dcc-panel-raised">
-              <SelectItem value="x">
-                X (default)
+              <SelectItem value="y">
+                Y (default · Left/Right)
               </SelectItem>
 
-              <SelectItem value="y">
-                Y
+              <SelectItem value="x">
+                X (Forward/Back)
               </SelectItem>
 
               <SelectItem value="z">
-                Z
+                Z (Up/Down)
               </SelectItem>
             </SelectContent>
           </Select>

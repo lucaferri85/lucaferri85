@@ -6,6 +6,11 @@ import { ViewportManager } from './viewportManager';
 import { setViewportManager } from './viewportBridge';
 import { moveFittedJoint, rotateFittedBone } from '../../lib/fitService';
 import { toast } from 'sonner';
+import {
+  configureViewportForUnreal,
+  constrainCenterlineLandmarkPosition,
+  templateToUnrealCoordinates,
+} from '../../lib/unrealCoordinateSystem';
 
 /**
  * Viewport3D
@@ -131,6 +136,20 @@ export default function Viewport3D() {
         containerRef.current
       );
 
+    configureViewportForUnreal(manager);
+
+    // Unreal convention: X forward, Y right, Z up.
+    // Left/right symmetry therefore lives on the Y axis.
+    const initialState = useAppStore.getState();
+    if (initialState.symmetry?.axis !== 'y') {
+      useAppStore.setState({
+        symmetry: {
+          ...initialState.symmetry,
+          axis: 'y',
+        },
+      });
+    }
+
     managerRef.current =
       manager;
 
@@ -153,7 +172,7 @@ export default function Viewport3D() {
       ) => {
         placeLandmark(
           id,
-          pos
+          constrainCenterlineLandmarkPosition(id, pos)
         );
 
         toast.success(
@@ -170,7 +189,7 @@ export default function Viewport3D() {
       ) => {
         moveLandmark(
           id,
-          pos
+          constrainCenterlineLandmarkPosition(id, pos)
         );
       },
 
@@ -559,7 +578,7 @@ export default function Viewport3D() {
   // Skeleton overlay.
   useEffect(() => {
     managerRef.current?.renderSkeleton(
-      template
+      templateToUnrealCoordinates(template)
     );
   }, [template]);
 

@@ -15,6 +15,11 @@ import { SkeletonFitter, rebuildFromPositions, assertStructure } from '../module
 import { RigValidator } from '../modules/RigValidator';
 import { isFitAuthorized } from './templateService';
 import { mirrorBoneName } from './fitRules';
+import {
+  templateToUnrealCoordinates,
+  constrainCenterlineBonePosition,
+  constrainCenterlineFittedBones,
+} from './unrealCoordinateSystem';
 
 const arr3 = (v) => [v.x, v.y, v.z];
 const arr4 = (q) => [q.x, q.y, q.z, q.w];
@@ -54,7 +59,10 @@ export function runAutoFit() {
   let fitted;
 
   try {
-    fitted = new SkeletonFitter().fit(s.template, s.landmarks);
+    fitted = new SkeletonFitter().fit(
+      templateToUnrealCoordinates(s.template),
+      s.landmarks
+    );
   } catch (e) {
     toast.error(`Auto Fit aborted — ${e.message}`);
     return null;
@@ -138,10 +146,16 @@ export function moveFittedJoint(
 
   if (!target) return;
 
+  const constrainedPos =
+    constrainCenterlineBonePosition(
+      name,
+      pos
+    );
+
   const delta = new Vector3(
-    pos.x,
-    pos.y,
-    pos.z
+    constrainedPos.x,
+    constrainedPos.y,
+    constrainedPos.z
   ).sub(
     new Vector3(...target.globalPos)
   );
@@ -246,7 +260,7 @@ export function moveFittedJoint(
 
   const rebuilt =
     rebuildFromPositions(
-      s.template,
+      templateToUnrealCoordinates(s.template),
       s.fitted.bones.map(
         (b) =>
           updated[b.name]
@@ -496,8 +510,24 @@ export function rotateFittedBone(
     }
   }
 
+  // Central Quinn chain must remain on Unreal Y=0 even after rotations.
+  // This preserves a straight sagittal centerline in Front/Back while still
+  // allowing profile depth edits along X.
+  const centeredBones =
+    constrainCenterlineFittedBones(bones);
+
+  const centeredBy =
+    Object.fromEntries(
+      centeredBones.map(
+        (bone) => [
+          bone.name,
+          bone,
+        ]
+      )
+    );
+
   // Recompute LOCAL transforms from the edited GLOBAL transforms.
-  for (const bone of bones) {
+  for (const bone of centeredBones) {
     const gPos =
       new Vector3(
         ...bone.globalPos
@@ -519,7 +549,7 @@ export function rotateFittedBone(
     }
 
     const parent =
-      by[bone.parent];
+      centeredBy[bone.parent];
 
     const parentPos =
       new Vector3(
@@ -560,7 +590,7 @@ export function rotateFittedBone(
   }
 
   const ok =
-    commitEdit(bones);
+    commitEdit(centeredBones);
 
   if (ok) {
     toast.success(

@@ -47,6 +47,10 @@ import {
 } from '../../lib/meshAlignmentService';
 
 import {
+  migrateLegacyProjectToUE,
+} from '../../lib/unrealCoordinateSystem';
+
+import {
   getViewportManager,
 } from '../viewport/viewportBridge';
 
@@ -272,10 +276,21 @@ export default function TopBar() {
   const loadProject =
     async (id) => {
       try {
-        const project =
+        const loadedProject =
           await loadLocalProject(
             id
           );
+
+        const project =
+          migrateLegacyProjectToUE(
+            loadedProject
+          );
+
+        if (project !== loadedProject) {
+          useAppStore
+            .getState()
+            .setProject(project);
+        }
 
         const templateData =
           project.template
