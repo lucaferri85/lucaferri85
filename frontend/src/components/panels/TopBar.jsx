@@ -7,6 +7,7 @@ import { Save, FolderOpen, Undo2, Redo2, Sparkles, Cpu } from 'lucide-react';
 import { toast } from 'sonner';
 import * as api from '../../lib/api';
 import { runValidation } from '../../lib/templateService';
+import { saveCurrentProject } from '../../lib/projectService';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 
 export default function TopBar() {
@@ -14,21 +15,9 @@ export default function TopBar() {
   const projectId = useAppStore(s => s.projectId);
   const setProjectName = useAppStore(s => s.setProjectName);
   const setProject = useAppStore(s => s.setProject);
-  const markSaved = useAppStore(s => s.markSaved);
-  const setSaving = useAppStore(s => s.setSaving);
   const saving = useAppStore(s => s.saving);
   const dirty = useAppStore(s => s.dirty);
   const lastSavedAt = useAppStore(s => s.lastSavedAt);
-  const stage = useAppStore(s => s.stage);
-  const landmarks = useAppStore(s => s.landmarks);
-  const mesh = useAppStore(s => s.mesh);
-  const symmetry = useAppStore(s => s.symmetry);
-  const template = useAppStore(s => s.template);
-  const templateSource = useAppStore(s => s.templateSource);
-  const templateSavedId = useAppStore(s => s.templateSavedId);
-  const fitted = useAppStore(s => s.fitted);
-  const fitApproved = useAppStore(s => s.fitApproved);
-  const fitApproval = useAppStore(s => s.fitApproval);
   const undo = useAppStore(s => s.undo);
   const redo = useAppStore(s => s.redo);
   const historyLen = useAppStore(s => s.history.length);
@@ -49,41 +38,7 @@ export default function TopBar() {
   useEffect(() => { refreshList(); }, []);
 
   const saveProject = async () => {
-    setSaving(true);
-    try {
-      let proj;
-      const payload = {
-        name: projectName,
-        stage,
-        landmarks,
-        symmetry,
-        mesh,
-        template: {
-          name: template.name || 'Skeleton Template',
-          version: String(template.version || ''),
-          source: templateSource,
-          bones_count: template.bones?.length || 0,
-          saved_template_id: templateSavedId,
-          template_data: template,
-        },
-        fitted: fitted || null,
-        fit_approved: fitApproved,
-        fit_approval: fitApproval,
-      };
-      if (projectId) {
-        proj = await api.updateProject(projectId, payload);
-      } else {
-        const created = await api.createProject(projectName);
-        proj = await api.updateProject(created.id, payload);
-      }
-      markSaved(proj);
-      toast.success('Project saved');
-      refreshList();
-    } catch (e) {
-      toast.error(`Save failed: ${e.message}`);
-    } finally {
-      setSaving(false);
-    }
+    try { await saveCurrentProject(); refreshList(); } catch (e) { /* toast shown by service */ }
   };
 
   const loadProject = async (id) => {

@@ -176,3 +176,16 @@ kbd, .kbd {
         border-left-color: inherit; border-right-color: inherit; border-top-color: inherit; border-bottom-color: inherit;
     }
 }
+
+/* Rig Assistant markdown */
+.assist-md p { margin: 0 0 0.4rem; }
+.assist-md p:last-child { margin-bottom: 0; }
+.assist-md ul, .assist-md ol { margin: 0.2rem 0 0.4rem 1rem; padding: 0; }
+.assist-md ul { list-style: disc; }
+.assist-md ol { list-style: decimal; }
+.assist-md li { margin: 0.1rem 0; }
+.assist-md code { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; background: rgba(255,255,255,0.06); padding: 0 3px; border-radius: 3px; color: var(--dcc-orange-glow); }
+.assist-md pre { background: rgba(0,0,0,0.35); padding: 6px 8px; border-radius: 4px; overflow-x: auto; margin: 0.3rem 0; }
+.assist-md pre code { background: none; padding: 0; color: inherit; }
+.assist-md strong { color: #fff; }
+.assist-md h1, .assist-md h2, .assist-md h3 { font-size: 12px; font-weight: 600; margin: 0.4rem 0 0.2rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--dcc-orange-glow); }

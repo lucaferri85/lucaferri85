@@ -5,6 +5,7 @@ import { Input } from '../ui/input';
 import { Wand2, GitCompare, Move3d, Undo2, RotateCcw, ArrowLeft, Lock, CheckCircle2, AlertTriangle, XCircle, Info, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { canAutoFit, runAutoFit, runCompare, resetFittedBone, resetFit, backToLandmarks, approveFit, approvalGate } from '../../lib/fitService';
+import { askAssistant } from '../../lib/assistant/assistantService';
 import TemplateBadge from './TemplateBadge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Checkbox } from '../ui/checkbox';
@@ -191,8 +192,11 @@ function BoneRow({ b, selected, onSelect, onReset }) {
         {b.manual && <button data-testid={`fit-bone-reset-${b.name}`} onClick={(e) => { e.stopPropagation(); onReset(); }} title="Reset bone to auto-fit"><Undo2 className="w-3 h-3" style={{ color: 'var(--text-mid)' }} /></button>}
       </div>
       {(selected || b.status !== 'ok') && (
-        <div className="text-[9px] mt-0.5 pl-4 leading-snug" style={{ color: 'var(--text-mid)' }}>
-          {b.anchor ? `via ${b.anchor} · ` : ''}{b.message || 'Solved directly from landmark'}{b.lengthRatio ? ` · length ${b.lengthRatio.toFixed(2)}×` : ''}
+        <div className="text-[9px] mt-0.5 pl-4 leading-snug flex items-start gap-1" style={{ color: 'var(--text-mid)' }}>
+          <span className="flex-1">{b.anchor ? `via ${b.anchor} · ` : ''}{b.message || 'Solved directly from landmark'}{b.lengthRatio ? ` · length ${b.lengthRatio.toFixed(2)}×` : ''}</span>
+          {b.status !== 'ok' && (
+            <button data-testid={`fit-bone-explain-${b.name}`} onClick={(e) => { e.stopPropagation(); askAssistant(`Explain the fit ${b.status.toUpperCase()} on bone "${b.name}" (method ${b.method}${b.anchor ? `, anchor ${b.anchor}` : ''}): "${b.message}". Which landmark or joint should be corrected, and can you fix it safely?`); }} className="dcc-label text-[9px] shrink-0 hover:text-white" style={{ color: 'var(--dcc-orange-glow)' }}>EXPLAIN</button>
+          )}
         </div>
       )}
     </div>

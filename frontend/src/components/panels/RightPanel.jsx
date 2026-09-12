@@ -5,8 +5,9 @@ import BonesTab from './BonesTab';
 import DiagnosticsTab from './DiagnosticsTab';
 import TemplateTab from './TemplateTab';
 import FitTab from './FitTab';
+import AssistTab from './AssistTab';
 
-const TAB_CLS = 'h-7 px-2 text-[11px] font-mono uppercase tracking-wider data-[state=active]:bg-[color:var(--panel-bg-raised)] data-[state=active]:text-[color:var(--dcc-orange-glow)]';
+const TAB_CLS = 'h-7 px-1.5 text-[10px] font-mono uppercase tracking-wider data-[state=active]:bg-[color:var(--panel-bg-raised)] data-[state=active]:text-[color:var(--dcc-orange-glow)]';
 
 export default function RightPanel() {
   const rightTab = useAppStore(s => s.rightTab);
@@ -18,7 +19,7 @@ export default function RightPanel() {
     >
       <Tabs value={rightTab} onValueChange={setRightTab} className="flex flex-col h-full">
         <TabsList
-          className="h-10 px-2 rounded-none border-b bg-transparent w-full justify-start gap-1"
+          className="h-10 px-1 rounded-none border-b bg-transparent w-full justify-start gap-1"
           style={{ borderColor: 'var(--panel-border)' }}
         >
           <TabsTrigger value="landmarks" data-testid="tab-landmarks" className={TAB_CLS}>Landmarks</TabsTrigger>
@@ -26,6 +27,7 @@ export default function RightPanel() {
           <TabsTrigger value="bones" data-testid="tab-bones" className={TAB_CLS}>Bones</TabsTrigger>
           <TabsTrigger value="template" data-testid="tab-template" className={TAB_CLS}>Template</TabsTrigger>
           <TabsTrigger value="diag" data-testid="tab-diag" className={TAB_CLS}>Diag</TabsTrigger>
+          <TabsTrigger value="assist" data-testid="tab-assist" className={TAB_CLS} style={{ color: 'var(--dcc-orange-glow)' }}>Assist</TabsTrigger>
         </TabsList>
 
         <TabsContent value="landmarks" className="flex-1 m-0 overflow-hidden">
@@ -42,6 +44,9 @@ export default function RightPanel() {
         </TabsContent>
         <TabsContent value="diag" className="flex-1 m-0 overflow-hidden">
           <DiagnosticsTab />
+        </TabsContent>
+        <TabsContent value="assist" className="flex-1 m-0 overflow-hidden">
+          <AssistTab />
         </TabsContent>
       </Tabs>
     </aside>

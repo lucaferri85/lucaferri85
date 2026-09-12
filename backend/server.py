@@ -496,6 +496,8 @@ async def delete_template(template_id: str):
 
 
 app.include_router(api_router)
+from assistant import make_assistant_router  # noqa: E402
+app.include_router(make_assistant_router(db))
 
 app.add_middleware(
     CORSMiddleware,

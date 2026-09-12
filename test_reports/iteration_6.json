@@ -1,0 +1,36 @@
+{
+  "summary": "Agentic Rig Assistant feature (backend + frontend) verified end-to-end against public preview URL. Backend: 41/41 pytest cases green (10 new /api/assistant tests + 31 regression). Live SSE tool-loop test with real OpenAI gpt-5.6-sol works: inspect_landmarks tool_call event received, correct id/name/arguments, confirm=false, mutating=false; done event has pending_tools; posting tool result continues stream; wrong tool_call_id → 400; transcript contains user/tool_call/tool_result; unknown session → 404. Config endpoint contains no API key value ('sk-emergent'/'sk-' absent) and key_source='EMERGENT_LLM_KEY'. Tools catalog has exactly 25 entries; confirm=true exactly for {reset_all_landmarks, reset_fit, approve_fit, save_project}. Sessions CRUD returns transcript (no 'messages' field) and DELETE returns {ok:true}. Frontend: ASSIST tab data-testid=tab-assist visible next to LANDMARKS/FIT/BONES/TEMPLATE/DIAG with scrollWidth==clientWidth (no overflow). assist-model-label reads 'openai/gpt-5.6-sol · agentic · tools enabled'. 4 suggestion chips shown when empty. AGENTIC FLOW: uploaded armored_humanoid.obj, ran auto-detect (26 placed), asked 'Move the pelvis landmark up by exactly 3 cm' — model called inspect_landmarks (OK) then offset_landmark (OK), REVERT button rendered on the mutating card, pelvis.position.y went 0.8275 → 0.8575 (delta 0.030 m ≈ 3 cm), header showed '1 ACTION'. Clicking REVERT restored pelvis.y to 0.8275 exactly and card shows REVERTED. CONFIRM GATE: 'Reset all landmarks now.' → assist-confirm-card appears mentioning reset_all_landmarks; DENY → tool status DENIED, 26 placed unchanged, assistant explains it was denied; re-issue and APPROVE → tool status OK, 0/30 placed. EXPLAIN: 9 landmark-explain-<id> buttons rendered on LOW/NOT-FOUND rows; clicking landmark-explain-pelvis switches to ASSIST (data-state=active) with pre-filled user message beginning 'Explain why landmark \"Pelvis\" (pelvis) is LOW confidence …'; assistant replies. PERSISTENCE: after reload, localStorage 'quinn.assistant.session.unsaved' key preserved and transcript restored from Mongo. NEW SESSION (+) clears messages and rotates the localStorage key. PROJECT SAVE regression: data-testid=project-save-button still works — save produces projectId + 'Project saved' toast. No 'sk-' string in any observed /api/assistant/config JSON. Zero console errors during flows.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "AssistTab header", "issues": ["assist-model-label truncates visually to 'TOOLS EN…' due to CSS truncate on the narrow row when '1 ACTION' badge is shown; underlying textContent still contains full 'tools enabled' so tests pass. Cosmetic only — consider wrapping to two lines or shrinking font."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_assistant.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_phase_b_fit.py",
+    "/app/backend/tests/test_templates_phase_a.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "assistant.py builds LlmChat with initial_messages=session.messages every turn — correct for stateless HTTP restarts, but note that after adding_tool_result the second stream_message call still passes the freshly-rebuilt chat which contains only the previously-persisted messages plus the new tool result; this works because build_chat is called AFTER load(), so no double-append. Solid.",
+    "_redact only replaces the exact key string. If the provider ever echoes a base64/hex-transformed key it would slip through. Current implementation is fine given emergentintegrations behaviour.",
+    "AssistTab.assist-model-label uses `truncate` — the DOM text is complete (assertion-friendly) but users can't visually see 'tools enabled' when 1 ACTION badge appears at 380 px panel width. Nit only.",
+    "ConfirmCard renders inside the scroll area — a very long confirm-arguments JSON pre could push the Approve/Deny buttons off-screen without a max-height. Not observed in this run.",
+    "assistantService.js localStorage key 'quinn.assistant.session.unsaved' is used verbatim; on project SAVE it should ideally rotate to per-project so the next 'unsaved' session doesn't inherit a saved project's transcript. Verify in a follow-up (not blocking this feature)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_assistant.py (new — 10 tests including live SSE tool loop)"
+  ],
+  "success_rate": {"backend": "100% (41/41 pytest, incl. real-LLM SSE)", "frontend": "100% — all requested agentic flows PASS"},
+  "test_credentials": "none (no auth in this app)",
+  "seed_data_creation": "Created assistant sessions and TEST_AssistRegression project during flow tests. Sessions are cleaned up by pytest teardown; the project row remains (prefixed TEST_).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend: /app/backend/tests/test_assistant.py exercises config/tools/sessions/CRUD/404/400 + a real SSE tool loop that hits the LLM (adds tool results to close the loop; ~15–30 s). Use window.__quinnStore.getState() to read landmarks. Assistant store persists localStorage key 'quinn.assistant.session.unsaved' which drives reload persistence. Assistant assistant-message and user-message data-testids are 'assist-assistant-msg' and 'assist-user-msg'. Tool card and its status testids are assist-tool-<name> and assist-tool-status-<name>. REVERT button testid is assist-revert-<action_id>. Actions header badge is assist-actions-count. Model returns pre-filled 'Explain why landmark \"<label>\" (<id>) is …' when a landmark-explain-<id> button is clicked in LandmarksTab; assistant may or may not call tools — assert on user text prefix + presence of assist-assistant-msg. If retesting reset_all_landmarks approve path, remember it sets landmarks to 0/30 placed (all pending).",
+  "rca of the issue": "No blocking issues. Minor cosmetic truncation of assist-model-label at narrow width is CSS-level (truncate class); DOM text is intact so it doesn't affect functionality or tests."
+}

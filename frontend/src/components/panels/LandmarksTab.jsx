@@ -6,6 +6,7 @@ import { LANDMARK_GROUPS } from '../../lib/landmarks';
 import { Target, RotateCcw, FlipHorizontal2, ChevronRight, ChevronDown, X, ScanSearch, Move } from 'lucide-react';
 import { toast } from 'sonner';
 import { runAutoDetect } from '../../lib/landmarkService';
+import { askAssistant } from '../../lib/assistant/assistantService';
 
 export const CONF = {
   high:      { label: 'HIGH',   color: 'var(--dcc-emerald)' },
@@ -226,8 +227,11 @@ function LandmarkRow(props) {
         <span className="dcc-label text-[9px]" style={{ color: statusColor }}>{statusLabel}</span>
       </div>
       {item.auto && item.note && (
-        <div className="pl-4 text-[9px] leading-snug" style={{ color: 'var(--text-faint)' }} data-testid={'landmark-note-' + item.id} title={item.note}>
-          {item.note.length > 110 ? item.note.slice(0, 110) + '…' : item.note}
+        <div className="pl-4 text-[9px] leading-snug flex items-start gap-1" style={{ color: 'var(--text-faint)' }} data-testid={'landmark-note-' + item.id} title={item.note}>
+          <span className="flex-1">{item.note.length > 110 ? item.note.slice(0, 110) + '…' : item.note}</span>
+          {(item.confidence === 'low' || item.confidence === 'not_found') && (
+            <button data-testid={'landmark-explain-' + item.id} onClick={(e) => { e.stopPropagation(); askAssistant(`Explain why landmark "${item.label}" (${item.id}) is ${item.confidence === 'not_found' ? 'NOT FOUND' : 'LOW confidence'} — note: "${item.note}". Propose a geometrically justified position and apply it if you are confident, otherwise tell me what to check.`); }} className="dcc-label text-[9px] shrink-0 hover:text-white" style={{ color: 'var(--dcc-orange-glow)' }}>EXPLAIN</button>
+          )}
         </div>
       )}
       {item.placed && !editing && (
