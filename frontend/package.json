@@ -1,6 +1,6 @@
 {
-  "name": "frontend",
-  "version": "0.1.0",
+  "name": "quinn-rigger-ue5",
+  "version": "0.2.0",
   "private": true,
   "dependencies": {
     "@hookform/resolvers": "5.0.1",
@@ -66,7 +66,9 @@
   "scripts": {
     "start": "craco start",
     "build": "craco build",
-    "test": "craco test"
+    "test": "craco test",
+    "desktop": "electron .",
+    "dist:win": "electron-builder --win portable --x64 --publish never"
   },
   "browserslist": {
     "production": [
@@ -95,7 +97,9 @@
     "eslint-plugin-react-hooks": "5.2.0",
     "globals": "15.15.0",
     "postcss": "8.5.10",
-    "tailwindcss": "3.4.17"
+    "tailwindcss": "3.4.17",
+    "electron": "^37.4.0",
+    "electron-builder": "^26.0.12"
   },
   "resolutions": {
     "react-router": "7.15.1",
@@ -141,5 +145,32 @@
     "**/tinyglobby/picomatch": "4.0.4",
     "http-proxy-middleware": "2.0.10"
   },
-  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e",
+  "description": "Quinn Rigger UE5 Auto-Rig desktop application",
+  "main": "electron/main.js",
+  "homepage": "./",
+  "build": {
+    "appId": "com.lucaferri.quinnrigger",
+    "productName": "Quinn Rigger UE5",
+    "directories": {
+      "output": "dist-desktop"
+    },
+    "files": [
+      "build/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Quinn-Rigger-UE5-${version}-Windows.exe"
+    }
+  }
 }
