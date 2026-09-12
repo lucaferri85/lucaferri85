@@ -35,6 +35,7 @@ export async function importTemplateFBX(file) {
       const saved = await api.saveTemplate(template, validation);
       savedId = saved.id;
       store.setTemplateSavedId(savedId);
+      rememberActiveTemplate(savedId);
     } catch (e) {
       toast.warning('Template parsed but could not be saved to library');
     }
@@ -75,13 +76,35 @@ export async function importTemplateJSON(file) {
   return { template: data, validation, savedId };
 }
 
-export async function loadTemplateFromLibrary(id) {
+export async function loadTemplateFromLibrary(id, { quiet = false } = {}) {
   const saved = await api.getTemplate(id);
   const data = saved.template_data;
   useAppStore.getState().setTemplate(data, saved.source, saved.validation || null, saved.id);
+  rememberActiveTemplate(saved.id);
   if (!saved.validation) await runValidation(data);
-  toast.success(`Loaded template: ${saved.name}`);
+  if (!quiet) toast.success(`Loaded template: ${saved.name}`);
   return saved;
+}
+
+const ACTIVE_KEY = 'quinn.template.activeSavedId';
+export function rememberActiveTemplate(id) { try { if (id) localStorage.setItem(ACTIVE_KEY, id); else localStorage.removeItem(ACTIVE_KEY); } catch { /* storage unavailable */ } }
+
+/** On startup: restore the last imported authoritative template from the server library instead of silently
+ *  falling back to the DEVELOPMENT / SAMPLE skeleton after a page reload. */
+export async function restoreActiveTemplate() {
+  let id = null;
+  try { id = localStorage.getItem(ACTIVE_KEY); } catch { return null; }
+  const s = useAppStore.getState();
+  if (!id || s.templateSource !== 'sample_dev') return null;
+  try {
+    const saved = await loadTemplateFromLibrary(id, { quiet: true });
+    toast.success(`Restored authoritative template: ${saved.name} · ${saved.bone_count || saved.template_data?.bones?.length} bones`);
+    return saved;
+  } catch (e) {
+    rememberActiveTemplate(null);
+    toast.warning('Your authoritative template could not be restored from the library — re-import the Quinn FBX. The DEV sample is active meanwhile.', { duration: 10000 });
+    return null;
+  }
 }
 
 export function exportTemplateJSON(template, validation) {

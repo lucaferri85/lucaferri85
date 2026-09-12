@@ -83,6 +83,10 @@ V1 scope requested by user: mesh import + interactive landmark placement + skele
 - Viewport: landmark markers render on top (depthTest off) so interior joints are visible; row notes explain each classification.
 - Fixtures/harness: `tests/fixtures/make_armored_obj.py [--warrior|--tpose]` → `armored_humanoid.obj`, `armored_warrior.obj` (helmet spike, sword in right hand, pauldrons, gauntlets, touching boots), `armored_tpose.obj`; `node tests/run_detector.mjs <obj>`; `tests/debug_sections.mjs`. Results: humanoid HIGH 4 · MEDIUM 17 · LOW 5 · NOT FOUND 4; warrior HIGH 3 · MEDIUM 14 · LOW 9 · NOT FOUND 4 (sword hand LOW, shoulders at torso width not pauldron, hips/pelvis LOW because thighs touch → split found low).
 
+## Template restore on reload (Jun 2026 — reported as 'FBX import regression')
+- Diagnosis: importer (`lib/fbx/*`), templateService, TemplateSection and backend validation were byte-identical to Phase A; the user's real `SKM_Quinn_Simple` (89 bones, FBX 7300, FBX SDK 2020.2) is in the server library and validates VALID. The app simply starts on the DEV sample after a page reload / pod restart and never auto-restored the authoritative template.
+- Fix: `templateService.rememberActiveTemplate/restoreActiveTemplate` — active library id kept in localStorage (`quinn.template.activeSavedId`) after FBX/JSON import or library load; on startup the template is reloaded from the library with a "Restored authoritative template" toast; failure shows an explicit warning instead of silently using the sample. RESET TO SAMPLE clears it.
+
 ## Phase B.1 checkpoint (STOP — user will Reset / Re-Detect on real armored warrior; no Phase C without approval)
 
 ## What's implemented (Agentic Rig Assistant — OpenAI, Jun 2026) — agent-tested (iteration_6: 41/41 backend incl. live SSE tool loop, all frontend flows PASS)

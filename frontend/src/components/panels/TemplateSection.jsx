@@ -6,7 +6,7 @@ import { FileCode2, Boxes, RotateCcw, Download, ShieldCheck } from 'lucide-react
 import { toast } from 'sonner';
 import * as api from '../../lib/api';
 import TemplateBadge, { ValidationPill } from './TemplateBadge';
-import { importTemplateFBX, importTemplateJSON, runValidation, exportTemplateJSON, loadTemplateFromLibrary } from '../../lib/templateService';
+import { importTemplateFBX, importTemplateJSON, runValidation, exportTemplateJSON, loadTemplateFromLibrary, restoreActiveTemplate, rememberActiveTemplate } from '../../lib/templateService';
 
 export default function TemplateSection() {
   const template = useAppStore(s => s.template);
@@ -25,6 +25,7 @@ export default function TemplateSection() {
     try { setLibrary(await api.listTemplates()); } catch (e) { /* offline library is non-fatal */ }
   };
   useEffect(() => { refreshLibrary(); }, [templateSavedId]);
+  useEffect(() => { restoreActiveTemplate(); }, []);
 
   const onFbx = async (file) => {
     if (!file) return;
@@ -86,7 +87,7 @@ export default function TemplateSection() {
         </Button>
         <Button data-testid="skeleton-reset-btn" variant="ghost" size="sm"
           className="h-7 text-[10px] col-span-2" style={{ color: 'var(--text-mid)' }}
-          onClick={() => { resetTemplateToDefault(); toast.warning('Switched to DEVELOPMENT / SAMPLE template'); }}>
+          onClick={() => { resetTemplateToDefault(); rememberActiveTemplate(null); toast.warning('Switched to DEVELOPMENT / SAMPLE template'); }}>
           <RotateCcw className="w-3 h-3 mr-1.5" /> RESET TO SAMPLE (DEV) TEMPLATE
         </Button>
         <input ref={fbxRef} type="file" accept=".fbx" className="hidden" data-testid="template-fbx-input" onChange={(e) => { onFbx(e.target.files?.[0]); e.target.value = ''; }} />
