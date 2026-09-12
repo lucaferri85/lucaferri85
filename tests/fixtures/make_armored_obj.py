@@ -39,16 +39,20 @@ cyl((0, 1.02, 0), (0, 1.55, 0), 0.19, 0.21); sphere((0, 1.02, 0), 0.18); cyl((0,
 for s in (1, -1):
     # legs with thick armoured boots (boot radius 0.11 vs shin 0.07)
     cyl((s * 0.11, 1.00, 0), (s * 0.12, 0.55, 0.01), 0.10, 0.075); cyl((s * 0.12, 0.55, 0.01), (s * 0.13, 0.13, -0.02), 0.075, 0.065)
-    cyl((s * 0.13, 0.13, -0.02), (s * 0.13, 0.30, -0.02), 0.115, 0.115)  # boot cuff (armour)
+    if '--mannequin' not in sys.argv: cyl((s * 0.13, 0.13, -0.02), (s * 0.13, 0.30, -0.02), 0.115, 0.115)  # boot cuff (armour)
     cyl((s * 0.13, 0.0, 0.02), (s * 0.13, 0.12, 0.02), 0.09, 0.09); cyl((s * 0.13, 0.05, -0.08), (s * 0.13, 0.05, 0.16), 0.06, 0.05)  # foot
     # arms A-pose, shoulder joint at x=0.23,y=1.50; big pauldron sphere far outside the joint
     sh = (s * 0.23, 1.50, 0.0); el = (s * 0.47, 1.28, -0.04); wr = (s * 0.66, 1.08, -0.06); tip = (s * 0.78, 0.96, -0.06)
+    if '--mannequin' in sys.argv:  # relaxed pose: arms hang close to the body, no armour
+        sh = (s * 0.23, 1.50, 0.0); el = (s * 0.30, 1.22, -0.02); wr = (s * 0.31, 0.97, -0.02); tip = (s * 0.31, 0.86, -0.01)
     if '--tpose' in sys.argv:
         sh = (s * 0.23, 1.50, 0.0); el = (s * 0.55, 1.50, -0.02); wr = (s * 0.82, 1.50, -0.03); tip = (s * 0.98, 1.50, -0.03)
     cyl(sh, el, 0.075, 0.06); cyl(el, wr, 0.06, 0.05); cyl(wr, tip, 0.05, 0.03)
-    sphere((s * 0.31, 1.54, 0.0), 0.16)  # pauldron: outer edge at x=0.47 (would fake the shoulder if silhouette were used)
+    if '--mannequin' not in sys.argv: sphere((s * 0.31, 1.54, 0.0), 0.16)  # pauldron: outer edge at x=0.47 (would fake the shoulder if silhouette were used)
+    if '--mannequin' in sys.argv:  # relaxed pose: arms hang close to the body, no armour
+        sh = (s * 0.23, 1.50, 0.0); el = (s * 0.30, 1.22, -0.02); wr = (s * 0.31, 0.97, -0.02); tip = (s * 0.31, 0.86, -0.01)
     if '--tpose' in sys.argv: cyl((s * 0.72, 1.50, -0.03), (s * 0.84, 1.50, -0.03), 0.10, 0.10)
-    else: cyl((s * 0.56, 1.19, -0.05), (s * 0.68, 1.06, -0.06), 0.10, 0.10)  # gauntlet
+    elif '--mannequin' not in sys.argv: cyl((s * 0.56, 1.19, -0.05), (s * 0.68, 1.06, -0.06), 0.10, 0.10)  # gauntlet
 if '--warrior' in sys.argv:
     # helmet spike (thin protrusion above the skull) and a sword held in the right hand pointing down/outward
     cyl((0, 1.88, 0.02), (0, 2.08, 0.02), 0.012, 0.004)
@@ -72,7 +76,7 @@ if '--tabard' in sys.argv:
     sheet(-0.12, 0.12, 0.55, 1.05, 0.12)
     sheet(-0.12, 0.12, 0.55, 1.05, -0.12)  # and behind
 suffix = ('_cape' if '--cape' in sys.argv else '') + ('_tabard' if '--tabard' in sys.argv else '')
-name = ('armored_warrior' if '--warrior' in sys.argv else 'armored_tpose' if '--tpose' in sys.argv else 'armored_humanoid') + suffix + '.obj'
+name = ('armored_warrior' if '--warrior' in sys.argv else 'armored_tpose' if '--tpose' in sys.argv else 'mannequin' if '--mannequin' in sys.argv else 'armored_humanoid') + suffix + '.obj'
 _unused = 'armored_tpose.obj' if '--tpose' in sys.argv else 'armored_humanoid.obj'
 with open(os.path.join(os.path.dirname(__file__), name), 'w') as f:
     for v in V: f.write('v %.4f %.4f %.4f\n' % tuple(v))

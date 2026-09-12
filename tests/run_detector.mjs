@@ -10,7 +10,19 @@ for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
   if (t[0] === 'v') verts.push([+t[1], +t[2], +t[3]]);
   else if (t[0] === 'f') { const f = t.slice(1).map(k => verts[parseInt(k.split('/')[0], 10) - 1]); for (let i = 1; i + 1 < f.length; i++) tris.push([...f[0], ...f[i], ...f[i + 1]]); }
 }
-const pts = sampleTriangles(tris, 80000);
+const subArg = process.argv.indexOf('--subdivide');
+let T = tris;
+for (let n = subArg >= 0 ? +process.argv[subArg + 1] : 0; n > 0; n--) {
+  const next = [];
+  for (const t of T) {
+    const A = t.slice(0, 3), B = t.slice(3, 6), C = t.slice(6, 9), m = (p, q) => p.map((v, i) => (v + q[i]) / 2);
+    const AB = m(A, B), BC = m(B, C), CA = m(C, A);
+    next.push([...A, ...AB, ...CA], [...AB, ...B, ...BC], [...CA, ...BC, ...C], [...AB, ...BC, ...CA]);
+  }
+  T = next;
+}
+console.log('triangles', T.length);
+const pts = sampleTriangles(T, 80000);
 // mimic viewport normalisation: height 1.75 m, feet at y=0, centred in x/z
 let mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
 for (const p of pts) for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], p[k]); mx[k] = Math.max(mx[k], p[k]); }

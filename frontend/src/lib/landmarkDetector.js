@@ -70,7 +70,7 @@ export function detectLandmarks(rawPoints, { symmetryAxis = 'x', debug = false }
   const idx = (f) => Math.min(SLICES - 1, Math.max(0, Math.floor(f * SLICES)));
   // 2-D connected components in the (x,z) plane of each slice: a cape behind the legs, a shield beside the hip or a
   // weapon in front no longer merges with body parts that only overlap in x. Cell = 1.2 % of height, 8-neighbourhood (≈ 2.4 % gap tolerance).
-  const cell = 0.012 * H;
+  const cell = 0.008 * H;
   const clustersOf = (pts) => {
     if (pts.length < 3) return [];
     const cells = new Map(); // key → point indices
@@ -98,7 +98,14 @@ export function detectLandmarks(rawPoints, { symmetryAxis = 'x', debug = false }
   };
   const S = slices.map(clustersOf);
   const z0 = median(torsoBand.map(p => p[2])) || 0;
-  const central = (i) => { let best = null, bd = Infinity; for (const c of S[i] || []) { if (c.sheet) continue; const dd = Math.hypot(c.cx, (c.cz - z0) * 0.5); if (dd < bd) { bd = dd; best = c; } } return best; };
+  // central body component: nearest to the torso axis among substantial components (spikes, buckles, straps are debris)
+  const central = (i) => {
+    const cl = S[i] || []; if (!cl.length) return null;
+    const minN = 0.15 * cl[0].n; // S[i] is sorted by n desc
+    let best = null, bd = Infinity;
+    for (const c of cl) { if (c.sheet || c.n < minN) continue; const dd = Math.hypot(c.cx, (c.cz - z0) * 0.5); if (dd < bd) { bd = dd; best = c; } }
+    return best;
+  };
   // points that belong to sheets (separate cape panels) or stick out of the body extent of the central component (attached cape)
   const sheetPts = new Set();
   for (let i = 0; i < SLICES; i++) {
@@ -287,7 +294,9 @@ export function detectLandmarks(rawPoints, { symmetryAxis = 'x', debug = false }
     if (wideLo > 0) { tPose = true; armpitI = wideLo - 1; }
   }
   let torsoHalf = null, shoulderY = null;
-  if (armpitI >= 0) {
+  // arms hanging close to the torso separate only far below the real armpit (or never): handled by axis extrapolation
+  const closeArms = !tPose && (armpitI < 0 || (neckY !== null && neckY - sliceY(armpitI) > 0.14 * H));
+  if (armpitI >= 0 && !closeArms) {
     // robust torso half-width: median of central widths over the 6 % below the armpit
     // torso half-width: body width (sheets stripped), cross-checked with the gap between the two arm components
     const ws = [];
@@ -327,15 +336,44 @@ export function detectLandmarks(rawPoints, { symmetryAxis = 'x', debug = false }
   for (const side of ['l', 'r']) {
     const sgn = side === 'l' ? 1 : -1;
     const ids = ['clavicle', 'shoulder', 'elbow', 'wrist', 'hand'].map(k => `${k}_${side}`);
-    if (torsoHalf === null) { for (const id of ids) nf(id, armpitI >= 0 ? 'Torso width implausible at the armpit (shoulder armour merged with torso?)' : 'No armpit separation found (arms merged with torso / not humanoid pose)'); continue; }
-    const sc = central(idx(frac(shoulderY)));
-    const shoulder = [sgn * (torsoHalf + 0.015 * H), shoulderY, sc ? sc.cz : 0];
-    put(`shoulder_${side}`, shoulder, tPose ? 'medium' : 'high', tPose ? 'T-pose: torso half-width below the arms + 1.5 % height' : 'Torso half-width at the armpit + 1.5 % height (pauldron silhouette ignored)');
-    put(`clavicle_${side}`, [sgn * torsoHalf * 0.35, shoulderY + 0.015 * H, sc ? sc.cz : 0], 'medium', 'Between neck base and shoulder joint');
+    let shoulder = null, axisPts = null;
+    if (closeArms) {
+      // arm components beside the torso (below where they separate), tracked down to the hand; the arm axis passes
+      // through the shoulder joint, so extrapolating it to shoulder height locates the shoulder without a silhouette
+      if (neckY === null) { for (const id of ids) nf(id, 'Arms hang against the torso and no neck base to anchor the shoulder height'); continue; }
+      const sy = neckY - 0.02 * H;
+      const yLo0 = crotchY !== null ? crotchY - 0.08 * H : rel(0.36);
+      const cents = []; axisPts = []; let prev = null;
+      for (let i = idx(frac(sy)); i >= idx(frac(yLo0)); i--) {
+        const t = central(i); if (!t) continue;
+        const cand = (S[i] || []).filter(k => k !== t && !k.sheet && sgn * k.cx > sgn * (sgn > 0 ? t.bmaxx : t.bminx) && Math.abs(k.cx) < Math.abs(sgn > 0 ? t.bmaxx : t.bminx) + 0.15 * H && k.w < 0.12 * H);
+        let c = null;
+        if (prev) { let bd = 0.05 * H; for (const k of cand) { const dd = Math.hypot(k.cx - prev.cx, (k.cz - prev.cz) * 0.5); if (dd < bd) { bd = dd; c = k; } } }
+        else c = cand.sort((u, v) => v.n - u.n)[0];
+        if (!c) { if (prev) break; continue; }
+        prev = c; cents.push([c.cx, sliceY(i), c.cz]); axisPts.push(...c.pts);
+      }
+      if (cents.length < idx(0.10)) { for (const id of ids) nf(id, 'Arms hang against the torso and no separate arm segment long enough to recover the arm axis — place shoulder/elbow/wrist manually'); continue; }
+      // least-squares x(y), z(y) over the tracked arm centroids
+      const n = cents.length, my = cents.reduce((a, c) => a + c[1], 0) / n, mx = cents.reduce((a, c) => a + c[0], 0) / n, mz = cents.reduce((a, c) => a + c[2], 0) / n;
+      let syy = 0, sxy = 0, szy = 0; for (const c of cents) { syy += (c[1] - my) ** 2; sxy += (c[0] - mx) * (c[1] - my); szy += (c[2] - mz) * (c[1] - my); }
+      const kx = syy ? sxy / syy : 0, kz = syy ? szy / syy : 0;
+      shoulder = [mx + kx * (sy - my), sy, mz + kz * (sy - my)];
+      const tc = central(idx(frac(sy)));
+      if (tc && sgn * shoulder[0] > sgn * (sgn > 0 ? tc.bmaxx : tc.bminx) + 0.06 * H) { for (const id of ids) nf(id, 'Arm axis extrapolation lands outside the shoulder region — place manually'); continue; }
+      put(`shoulder_${side}`, shoulder, 'medium', 'Arms hang against the torso — shoulder from the hanging-arm axis extrapolated to 2 % height below the neck base; verify');
+      put(`clavicle_${side}`, [shoulder[0] * 0.35, sy + 0.015 * H, tc ? tc.cz : shoulder[2]], 'medium', 'Between neck base and shoulder joint');
+    } else {
+      if (torsoHalf === null) { for (const id of ids) nf(id, armpitI >= 0 ? 'Torso width implausible at the armpit (shoulder armour merged with torso?)' : 'No armpit separation found (arms merged with torso / not humanoid pose)'); continue; }
+      const sc = central(idx(frac(shoulderY)));
+      shoulder = [sgn * (torsoHalf + 0.015 * H), shoulderY, sc ? sc.cz : 0];
+      put(`shoulder_${side}`, shoulder, tPose ? 'medium' : 'high', tPose ? 'T-pose: torso half-width below the arms + 1.5 % height' : 'Torso half-width at the armpit + 1.5 % height (pauldron silhouette ignored)');
+      put(`clavicle_${side}`, [sgn * torsoHalf * 0.35, shoulderY + 0.015 * H, sc ? sc.cz : 0], 'medium', 'Between neck base and shoulder joint');
+    }
 
     // arm points: beyond the torso, above the legs
     const yLo = crotchY !== null ? crotchY + 0.05 * H : rel(0.45);
-    const armPts = points.filter(p => !sheetPts.has(p) && sgn * p[0] > torsoHalf + 0.01 * H && p[1] > yLo && p[1] < (out.head_top.position?.y ?? maxY));
+    const armPts = axisPts || points.filter(p => !sheetPts.has(p) && sgn * p[0] > torsoHalf + 0.01 * H && p[1] > yLo && p[1] < (out.head_top.position?.y ?? maxY));
     if (armPts.length < 30) { for (const id of ids.slice(2)) nf(id, 'No arm geometry beyond the torso on this side'); continue; }
     const dist = armPts.map(p => Math.hypot(p[0] - shoulder[0], p[1] - shoulder[1], p[2] - shoulder[2]));
     // radial profile along the distance from the shoulder: a sustained thin section (< 1.2 % height for ≥ 5 cm) beyond 30 % height marks
@@ -350,7 +388,7 @@ export function detectLandmarks(rawPoints, { symmetryAxis = 'x', debug = false }
     }
     const L = cut > 0 ? cut * binW : percentile(dist, 0.995);
     const armNote = cut > 0 ? ' · thin accessory beyond the hand ignored' : '';
-    const lenOK = L > 0.30 * H && L < 0.58 * H;
+    const lenOK = L > 0.25 * H && L < 0.58 * H;
     if (!lenOK) { for (const id of ids.slice(2)) nf(id, `Arm length ${(L * 100).toFixed(0)} cm (${(L / H * 100).toFixed(0)} % of height) implausible — weapon/cape/accessory attached?`); continue; }
     // tip = centroid of the last 4 % of the arm; then use only points near the shoulder→tip axis (rejects pauldron / cape volume)
     const tip = centroid(armPts.filter((p, k) => dist[k] >= 0.96 * L && dist[k] <= L));
@@ -366,7 +404,9 @@ export function detectLandmarks(rawPoints, { symmetryAxis = 'x', debug = false }
     const tOf = (p) => (p[0] - shoulder[0]) * u[0] + (p[1] - shoulder[1]) * u[1] + (p[2] - shoulder[2]) * u[2];
     const band = (f0, f1) => centroid(onAxis.filter(p => { const t = tOf(p) / L; return t >= f0 && t <= f1; }));
     const elbow = band(0.38, 0.46), wrist = band(0.72, 0.78);
-    if (elbow) put(`elbow_${side}`, elbow, 'medium', 'Arm-axis centroid at 42 % of shoulder→hand length' + armNote); else nf(`elbow_${side}`, 'No arm geometry at elbow distance (gap in mesh?)');
+    if (elbow) put(`elbow_${side}`, elbow, 'medium', 'Arm-axis centroid at 42 % of shoulder→hand length' + armNote);
+    else if (axisPts) put(`elbow_${side}`, [shoulder[0] + u[0] * 0.42 * L, shoulder[1] + u[1] * 0.42 * L, shoulder[2] + u[2] * 0.42 * L], 'medium', 'Upper arm merged with the torso — elbow placed on the recovered arm axis at 42 % of shoulder→hand length; verify');
+    else nf(`elbow_${side}`, 'No arm geometry at elbow distance (gap in mesh?)');
     if (wrist) put(`wrist_${side}`, wrist, 'medium', 'Arm-axis centroid at 75 % of shoulder→hand length (gauntlet centroid)' + armNote); else nf(`wrist_${side}`, 'No arm geometry at wrist distance (gap in mesh?)');
     put(`hand_${side}`, tip, 'medium', 'Arm-axis end (hand tip)' + armNote);
   }
@@ -417,7 +457,7 @@ export function detectLandmarks(rawPoints, { symmetryAxis = 'x', debug = false }
     }
   }
   for (const l of Object.values(out)) if (l.position) l.position.x += x0;
-  return { landmarks: out, height: H, slices: SLICES, crotchY, armpitI, torsoHalf, tPose, midlineX: x0, tracks: debug ? { seedI, crotchI, l: tracks.l && [...tracks.l.up.entries()].map(([i, c]) => [i, c.merged ? 'M' : c.cloth ? 'C' : 'ok', +c.cx.toFixed(3)]) } : undefined, sections: debug ? S.map((cl, i) => ({ y: sliceY(i), clusters: cl.map(({ pts, ...c }) => c) })) : undefined };
+  return { landmarks: out, height: H, slices: SLICES, crotchY, armpitI, torsoHalf, tPose, midlineX: x0, closeArms, neckY, armpitY: armpitI >= 0 ? sliceY(armpitI) : null, tracks: debug ? { seedI, crotchI, l: tracks.l && [...tracks.l.up.entries()].map(([i, c]) => [i, c.merged ? 'M' : c.cloth ? 'C' : 'ok', +c.cx.toFixed(3)]) } : undefined, sections: debug ? S.map((cl, i) => ({ y: sliceY(i), clusters: cl.map(({ pts, ...c }) => c) })) : undefined };
 }
 
 /** Body extent in x ignoring thin sheets (capes, banners) that stick out sideways at the front/back z extremes. */

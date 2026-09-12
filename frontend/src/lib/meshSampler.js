@@ -1,32 +1,39 @@
 /**
  * Area-uniform surface sampling of triangle soups → point cloud for landmark detection.
- * Independent of tessellation density (low-poly rings and dense scans give the same cloud).
- * tris: iterable of [ax,ay,az, bx,by,bz, cx,cy,cz] world-space triangles.
+ * The cloud size is ≈ `target` regardless of tessellation (9 M-vertex scans and 5 k-vertex game meshes give
+ * statistically equivalent clouds), so mesh density does not change anatomical results.
  */
-export function sampleTriangles(tris, target = 80000) {
-  let totalArea = 0;
-  const areas = tris.map(t => { const a = triArea(t); totalArea += a; return a; });
-  if (!totalArea) return tris.map(t => [t[0], t[1], t[2]]);
+export function triArea(ax, ay, az, bx, by, bz, cx, cy, cz) {
+  const ux = bx - ax, uy = by - ay, uz = bz - az, vx = cx - ax, vy = cy - ay, vz = cz - az;
+  const x = uy * vz - uz * vy, y = uz * vx - ux * vz, z = ux * vy - uy * vx;
+  return 0.5 * Math.sqrt(x * x + y * y + z * z);
+}
+
+/** Streaming sampler: pass 1 → totalArea (and triangle count), pass 2 → add(tri) for every triangle. */
+export function createSurfaceSampler(totalArea, triCount, target = 80000) {
   let seed = 12345;
   const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
-  const density = target / totalArea;
+  const density = totalArea > 0 ? target / totalArea : 0;
+  const keepVertices = triCount <= target / 4; // sparse meshes: keep a vertex per triangle so thin parts are never missed
   const out = [];
-  tris.forEach((t, k) => {
-    const n = Math.floor(areas[k] * density + rnd());
-    out.push([t[0], t[1], t[2]]);
+  const add = (ax, ay, az, bx, by, bz, cx, cy, cz) => {
+    if (keepVertices) out.push([ax, ay, az]);
+    const n = Math.floor(triArea(ax, ay, az, bx, by, bz, cx, cy, cz) * density + rnd());
     for (let i = 0; i < n; i++) {
       let u = rnd(), v = rnd();
       if (u + v > 1) { u = 1 - u; v = 1 - v; }
       const w = 1 - u - v;
-      out.push([w * t[0] + u * t[3] + v * t[6], w * t[1] + u * t[4] + v * t[7], w * t[2] + u * t[5] + v * t[8]]);
+      out.push([w * ax + u * bx + v * cx, w * ay + u * by + v * cy, w * az + u * bz + v * cz]);
     }
-  });
-  return out;
+  };
+  return { add, points: out };
 }
 
-function triArea(t) {
-  const ux = t[3] - t[0], uy = t[4] - t[1], uz = t[5] - t[2];
-  const vx = t[6] - t[0], vy = t[7] - t[1], vz = t[8] - t[2];
-  const cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx;
-  return 0.5 * Math.sqrt(cx * cx + cy * cy + cz * cz);
+/** Convenience for in-memory triangle lists: tris = [[ax,ay,az,bx,by,bz,cx,cy,cz], …]. */
+export function sampleTriangles(tris, target = 80000) {
+  let total = 0;
+  for (const t of tris) total += triArea(...t);
+  const s = createSurfaceSampler(total, tris.length, target);
+  for (const t of tris) s.add(...t);
+  return s.points;
 }

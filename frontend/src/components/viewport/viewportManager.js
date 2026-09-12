@@ -17,7 +17,7 @@ import { GLTFLoader }   from 'three/examples/jsm/loaders/GLTFLoader';
 import { OBJLoader }    from 'three/examples/jsm/loaders/OBJLoader';
 import { FBXLoader }    from 'three/examples/jsm/loaders/FBXLoader';
 import { LANDMARKS_BY_ID } from '../../lib/landmarks';
-import { sampleTriangles } from '../../lib/meshSampler';
+import { createSurfaceSampler, triArea } from '../../lib/meshSampler';
 
 const VIEWPORT_BG = 0x121316;
 const GRID_MAJOR  = 0x2e323b;
@@ -457,13 +457,12 @@ export class ViewportManager {
     return this._installMesh(obj, ext, file.name);
   }
 
-  /** World-space, area-uniform surface sample of the current mesh (≈ maxPoints) for landmark detection. */
+  /** World-space, area-uniform surface sample of the current mesh (≈ maxPoints, independent of vertex count). */
   getMeshPointCloud(maxPoints = 80000) {
     if (!this.currentMesh) return [];
     this.currentMesh.updateMatrixWorld(true);
-    const tris = [];
     const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
-    this.currentMesh.traverse(o => {
+    const forEachTri = (fn) => this.currentMesh.traverse(o => {
       if (!o.isMesh || !o.geometry?.attributes.position) return;
       const pos = o.geometry.attributes.position, index = o.geometry.index;
       const n = index ? index.count : pos.count;
@@ -472,10 +471,14 @@ export class ViewportManager {
         a.fromBufferAttribute(pos, at(i)).applyMatrix4(o.matrixWorld);
         b.fromBufferAttribute(pos, at(i + 1)).applyMatrix4(o.matrixWorld);
         c.fromBufferAttribute(pos, at(i + 2)).applyMatrix4(o.matrixWorld);
-        tris.push([a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z]);
+        fn(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
       }
     });
-    return sampleTriangles(tris, maxPoints);
+    let total = 0, count = 0;
+    forEachTri((...t) => { total += triArea(...t); count++; });
+    const sampler = createSurfaceSampler(total, count, maxPoints);
+    forEachTri(sampler.add);
+    return sampler.points;
   }
 
   removeMesh() {
