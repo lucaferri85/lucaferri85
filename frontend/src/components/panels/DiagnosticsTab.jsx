@@ -1,6 +1,8 @@
 import { useAppStore } from '../../store/appStore';
 import { isFitAuthorized } from '../../lib/templateService';
 import { sourceInfo } from '../../lib/quinnTemplate';
+import { Button } from '../ui/button';
+import { ArrowRight } from 'lucide-react';
 
 export default function DiagnosticsTab() {
   const meshLoaded = useAppStore(s => s.meshLoaded);
@@ -9,6 +11,14 @@ export default function DiagnosticsTab() {
   const template = useAppStore(s => s.template);
   const templateSource = useAppStore(s => s.templateSource);
   const templateValidation = useAppStore(s => s.templateValidation);
+  const fitted = useAppStore(s => s.fitted);
+  const comparison = useAppStore(s => s.comparison);
+  const fitApproved = useAppStore(s => s.fitApproved);
+  const skinning = useAppStore(s => s.skinning);
+  const skinningValidation = useAppStore(s => s.skinningValidation);
+  const skinningStale = useAppStore(s => s.skinningStale);
+  const setStage = useAppStore(s => s.setStage);
+  const setRightTab = useAppStore(s => s.setRightTab);
 
   const placed = landmarks.filter(l => l.placed).length;
   const total = landmarks.length;
@@ -50,6 +60,10 @@ export default function DiagnosticsTab() {
     { label: 'Template validation',   status: validationStatus, detail: validationDetail },
     { label: 'Core landmarks placed', status: coreLandmarksReady ? 'pass' : 'pending', detail: placed + ' / ' + total + ' placed' },
     { label: 'Ready for auto-fit',    status: readyStatus,      detail: readyDetail },
+    { label: 'Fitted skeleton',        status: fitted ? (comparison?.overall === 'fail' ? 'fail' : 'pass') : 'pending', detail: fitted ? `${fitted.bones.length} bones · compare ${comparison?.overall || 'not run'}` : 'Run Auto Fit' },
+    { label: 'Fit approval',           status: fitApproved ? 'pass' : 'pending', detail: fitApproved ? 'Approved for skinning' : 'Review and approve the fit' },
+    { label: 'Skin weights',           status: !skinning ? 'pending' : skinningStale ? 'warn' : skinningValidation?.valid ? 'pass' : 'fail', detail: !skinning ? 'Generate automatic weights' : skinningStale ? 'Stale — regenerate after fit changes' : `${skinning.report.verticesWeighted.toLocaleString()} vertices · ${skinning.report.avgInfluences.toFixed(2)} avg influences` },
+    { label: 'Skin validation',        status: !skinningValidation ? 'pending' : skinningValidation.valid ? 'pass' : 'fail', detail: !skinningValidation ? 'Not run' : skinningValidation.valid ? 'Normalized · valid bone indices · max 4 influences · no IK/root/aux weights' : skinningValidation.errors.join('; ') },
   ];
 
   return (
@@ -63,6 +77,14 @@ export default function DiagnosticsTab() {
           <div className="dcc-label text-[10px] mt-1">{c.detail}</div>
         </div>
       ))}
+      <Button
+        disabled={!skinning || !skinningValidation?.valid || skinningStale || comparison?.overall === 'fail'}
+        onClick={() => { setStage('export'); setRightTab('export'); }}
+        className="h-8 w-full text-[11px] text-white"
+        style={{ background: skinning && skinningValidation?.valid && !skinningStale && comparison?.overall !== 'fail' ? 'var(--dcc-orange)' : 'var(--panel-bg-raised)' }}
+      >
+        CONTINUE TO EXPORT RIG <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+      </Button>
     </div>
   );
 }

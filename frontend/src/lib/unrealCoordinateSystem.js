@@ -305,6 +305,12 @@ export function configureViewportForUnreal(manager) {
   if (!manager || manager.__ueCoordinatesConfigured) return manager;
   manager.__ueCoordinatesConfigured = true;
 
+  // Blender-like neutral viewport. Keep the application shell light while the
+  // modelling canvas stays medium gray for mesh/skeleton contrast.
+  manager.scene.background = new THREE.Color(0x3b3c3f);
+  if (manager.gridMajor?.material) manager.gridMajor.material.color.setHex(0x67696e);
+  if (manager.gridMinor?.material) manager.gridMinor.material.color.setHex(0x4b4d51);
+
   const convertObjectOnce = (object) => {
     if (!object || object.userData?.quinnCoordinateSystem === UE_COORDINATE_SYSTEM) {
       return;
@@ -359,6 +365,14 @@ export function configureViewportForUnreal(manager) {
   if (manager.currentMesh) {
     convertObjectOnce(manager.currentMesh);
   }
+
+  // OrbitControls was created while the viewport was Y-up. After changing the
+  // camera to Z-up, invert orbit drag once so mouse movement keeps the same
+  // screen-space direction the user had before the axis migration.
+  manager.controls.rotateSpeed = -1.0;
+  manager.controls.panSpeed = 1.0;
+  manager.controls.zoomSpeed = 1.0;
+  manager.controls.screenSpacePanning = true;
 
   manager.controls.target.set(0, 0, 1.0);
   manager.perspectiveCamera.position.set(2.6, -1.6, 1.5);
@@ -427,4 +441,16 @@ export function configureViewportForUnreal(manager) {
   };
 
   return manager;
+}
+
+/** Unreal-workspace quaternion -> standard Three.js/legacy Y-up quaternion. */
+export function ueQuaternionToLegacyArray(rot) {
+  if (!Array.isArray(rot) || rot.length !== 4) return rot;
+  const q = new THREE.Quaternion(rot[0], rot[1], rot[2], rot[3]).normalize();
+  const r = new THREE.Matrix4().makeRotationFromQuaternion(q);
+  const basis = legacyToUEBasisMatrix();
+  const inv = basis.clone().invert();
+  const converted = inv.clone().multiply(r).multiply(basis);
+  const out = new THREE.Quaternion().setFromRotationMatrix(converted).normalize();
+  return [out.x, out.y, out.z, out.w];
 }

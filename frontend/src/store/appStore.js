@@ -27,7 +27,7 @@ export const useAppStore = create((set, get) => ({
   placingMode: false,
   landmarkMode: 'idle', // idle | edit | manual
   detectionRun: false,
-  symmetry: { enabled: true, axis: 'x' },
+  symmetry: { enabled: true, axis: 'y' },
 
   // ---------- Skeleton template ----------
   template: DEFAULT_QUINN_TEMPLATE,
@@ -48,6 +48,14 @@ export const useAppStore = create((set, get) => ({
   fitApproval: null,     // { approved_at, acknowledged_warnings, acknowledged_by_user }
   fitStale: false,       // landmarks changed since last fit
   showFitted: true,
+
+  // ---------- Skinning (Phase C) ----------
+  skinning: null,         // in-memory typed arrays + report; intentionally not persisted in Mongo
+  skinningValidation: null,
+  skinningProgress: 0,
+  skinningRunning: false,
+  skinningStale: false,   // fit/mesh changed after weights were generated
+
   rightTab: 'landmarks',
 
   // ---------- Viewport ----------
@@ -78,7 +86,7 @@ export const useAppStore = create((set, get) => ({
       landmarkMode: detectionRun ? 'edit' : 'idle',
       activeLandmarkId: null,
       placingMode: false,
-      symmetry: project.symmetry || { enabled: true, axis: 'x' },
+      symmetry: project.symmetry || { enabled: true, axis: 'y' },
       mesh: project.mesh || emptyMesh,
       meshLoaded: !!(project.mesh && project.mesh.vertices > 0),
       template: (project.template && project.template.template_data && project.template.template_data.bones)
@@ -97,6 +105,7 @@ export const useAppStore = create((set, get) => ({
       fitApproved: !!project.fit_approved,
       fitApproval: project.fit_approval || null,
       fitStale: false,
+      skinning: null, skinningValidation: null, skinningProgress: 0, skinningRunning: false, skinningStale: false,
       dirty: false,
       lastSavedAt: project.updated_at,
       history: [],
@@ -119,11 +128,12 @@ export const useAppStore = create((set, get) => ({
   setMesh: (meshInfo) => set({
     mesh: meshInfo,
     meshLoaded: true,
+    skinning: null, skinningValidation: null, skinningProgress: 0, skinningStale: false,
     dirty: true,
     stage: get().stage === 'import' ? 'landmarks' : get().stage,
   }),
 
-  clearMesh: () => set({ mesh: emptyMesh, meshLoaded: false, dirty: true }),
+  clearMesh: () => set({ mesh: emptyMesh, meshLoaded: false, skinning: null, skinningValidation: null, skinningProgress: 0, skinningStale: false, dirty: true }),
 
   // ---------- Landmarks ----------
   _pushHistory: () => {
@@ -187,7 +197,7 @@ export const useAppStore = create((set, get) => ({
       landmarks: updated,
       activeLandmarkId: nextActive,
       placingMode: !!nextActive,
-      dirty: true, fitStale: !!get().fitted,
+      dirty: true, fitStale: !!get().fitted, skinningStale: !!get().skinning,
     });
   },
 
@@ -218,7 +228,7 @@ export const useAppStore = create((set, get) => ({
         );
       }
     }
-    set({ landmarks: updated, dirty: true, fitStale: !!get().fitted });
+    set({ landmarks: updated, dirty: true, fitStale: !!get().fitted, skinningStale: !!get().skinning });
   },
 
   clearLandmark: (id) => {
@@ -228,14 +238,14 @@ export const useAppStore = create((set, get) => ({
       landmarks: state.landmarks.map(l =>
         l.id === id ? { ...l, placed: false, position: {x:0,y:0,z:0}, mirrored: false, confidence: undefined, note: undefined, auto: false } : l
       ),
-      dirty: true, fitStale: !!get().fitted,
+      dirty: true, fitStale: !!get().fitted, skinningStale: !!get().skinning,
     });
   },
 
   resetAllLandmarks: () => {
     const state = get();
     state._pushHistory();
-    set({ landmarks: initialLandmarkState(), activeLandmarkId: null, placingMode: false, landmarkMode: 'idle', detectionRun: false, dirty: true, fitStale: !!get().fitted });
+    set({ landmarks: initialLandmarkState(), activeLandmarkId: null, placingMode: false, landmarkMode: 'idle', detectionRun: false, dirty: true, fitStale: !!get().fitted, skinningStale: !!get().skinning });
   },
 
   mirrorAllFromLeft: () => {
@@ -257,7 +267,7 @@ export const useAppStore = create((set, get) => ({
       }
       return l;
     });
-    set({ landmarks: updated, dirty: true, fitStale: !!get().fitted });
+    set({ landmarks: updated, dirty: true, fitStale: !!get().fitted, skinningStale: !!get().skinning });
   },
 
   setSymmetry: (patch) => set({ symmetry: { ...get().symmetry, ...patch }, dirty: true }),
@@ -273,7 +283,7 @@ export const useAppStore = create((set, get) => ({
       if (!d.position) return { ...l, placed: false, position: { x: 0, y: 0, z: 0 }, mirrored: false, confidence: 'not_found', note: d.note, auto: true };
       return { ...l, placed: true, position: d.position, mirrored: false, confidence: d.confidence, note: d.note, auto: true };
     });
-    set({ landmarks, activeLandmarkId: null, placingMode: false, landmarkMode: 'edit', detectionRun: true, dirty: true, fitStale: !!state.fitted });
+    set({ landmarks, activeLandmarkId: null, placingMode: false, landmarkMode: 'edit', detectionRun: true, dirty: true, fitStale: !!state.fitted, skinningStale: !!state.skinning });
   },
   setLandmarkMode: (mode) => set({ landmarkMode: mode }),
 
@@ -286,7 +296,7 @@ export const useAppStore = create((set, get) => ({
       landmarks: JSON.parse(prev),
       history: history.slice(0, -1),
       future: [JSON.stringify(landmarks), ...future].slice(0, MAX_HISTORY),
-      dirty: true, fitStale: !!get().fitted,
+      dirty: true, fitStale: !!get().fitted, skinningStale: !!get().skinning,
     });
   },
   redo: () => {
@@ -297,7 +307,7 @@ export const useAppStore = create((set, get) => ({
       landmarks: JSON.parse(next),
       history: [...history, JSON.stringify(landmarks)].slice(-MAX_HISTORY),
       future: future.slice(1),
-      dirty: true, fitStale: !!get().fitted,
+      dirty: true, fitStale: !!get().fitted, skinningStale: !!get().skinning,
     });
   },
 
@@ -309,6 +319,7 @@ export const useAppStore = create((set, get) => ({
     templateSavedId: savedId,
     selectedBoneName: null,
     fitted: null, fittedAuto: null, comparison: null, fitEditMode: false, fitApproved: false,
+    skinning: null, skinningValidation: null, skinningProgress: 0, skinningStale: false,
     dirty: true,
   }),
   setTemplateValidation: (validation) => set({ templateValidation: validation }),
@@ -321,6 +332,7 @@ export const useAppStore = create((set, get) => ({
     templateSavedId: null,
     selectedBoneName: null,
     fitted: null, fittedAuto: null, comparison: null, fitEditMode: false, fitApproved: false,
+    skinning: null, skinningValidation: null, skinningProgress: 0, skinningStale: false,
     dirty: true,
   }),
   setSelectedBone: (name) => set({ selectedBoneName: name }),
@@ -329,15 +341,25 @@ export const useAppStore = create((set, get) => ({
 
   // ---------- Fitted skeleton ----------
   setFitted: (fitted, comparison = null) => set({
-    fitted, fittedAuto: fitted ? JSON.parse(JSON.stringify(fitted)) : null, comparison, fitApproved: false, fitApproval: null, fitStale: false, dirty: true,
+    fitted, fittedAuto: fitted ? JSON.parse(JSON.stringify(fitted)) : null, comparison, fitApproved: false, fitApproval: null, fitStale: false,
+    skinning: null, skinningValidation: null, skinningProgress: 0, skinningStale: false, dirty: true,
     stage: fitted ? 'skeleton' : get().stage,
   }),
-  updateFittedBones: (bones) => set({ fitted: { ...get().fitted, bones, edited: true }, comparison: null, fitApproved: false, fitApproval: null, dirty: true }),
+  updateFittedBones: (bones) => set({ fitted: { ...get().fitted, bones, edited: true }, comparison: null, fitApproved: false, fitApproval: null, skinningStale: !!get().skinning, dirty: true }),
   setComparison: (comparison) => set({ comparison }),
   setFitEditMode: (v) => set({ fitEditMode: v, placingMode: v ? false : get().placingMode, activeLandmarkId: v ? null : get().activeLandmarkId }),
   toggleFitted: () => set({ showFitted: !get().showFitted }),
-  clearFit: () => set({ fitted: null, fittedAuto: null, comparison: null, fitEditMode: false, fitApproved: false, fitApproval: null, fitStale: false, dirty: true }),
+  clearFit: () => set({ fitted: null, fittedAuto: null, comparison: null, fitEditMode: false, fitApproved: false, fitApproval: null, fitStale: false, skinning: null, skinningValidation: null, skinningProgress: 0, skinningStale: false, dirty: true }),
   setFitApproved: (v, meta = null) => set({ fitApproved: v, fitApproval: v ? { approved_at: new Date().toISOString(), ...(meta || {}) } : null, dirty: true }),
+
+  // ---------- Skinning ----------
+  setSkinningRunning: (v) => set({ skinningRunning: v, skinningProgress: v ? 0 : get().skinningProgress }),
+  setSkinningProgress: (v) => set({ skinningProgress: Math.max(0, Math.min(1, v)) }),
+  setSkinning: (result, validation = null) => set({
+    skinning: result, skinningValidation: validation, skinningRunning: false, skinningProgress: result ? 1 : 0, skinningStale: false,
+    dirty: true, stage: result ? 'skinning' : get().stage,
+  }),
+  clearSkinning: () => set({ skinning: null, skinningValidation: null, skinningRunning: false, skinningProgress: 0, skinningStale: false, dirty: true }),
 
   // ---------- Viewport toggles ----------
   toggleSkeleton:   () => set({ showSkeleton:   !get().showSkeleton }),

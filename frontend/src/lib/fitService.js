@@ -823,7 +823,7 @@ export function approveFit(
       gate.warns
         ? ` with ${gate.warns} acknowledged warning(s)`
         : ''
-    } — skinning stays locked until Phase C is authorised`
+    } — automatic skinning is now unlocked`
   );
 
   return true;

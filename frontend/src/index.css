@@ -5,49 +5,49 @@
 /* --- UE5 Quinn Auto-Rigger Pro — Tactical DCC Dark Theme --- */
 @import url('https://fonts.googleapis.com/css2?family=Chivo:wght@400;600;700;900&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
+
 :root, .dark {
-    /* shadcn tokens mapped to DCC dark palette */
-    --background: 225 8% 9%;         /* #16171b */
-    --foreground: 0 0% 96%;           /* #f4f4f5 */
-    --card: 226 8% 12%;               /* #1e2025 */
-    --card-foreground: 0 0% 96%;
-    --popover: 226 10% 10%;
-    --popover-foreground: 0 0% 96%;
-    --primary: 21 90% 48%;            /* #ea580c blender orange */
+    /* Light DCC shell + Blender-like neutral viewport */
+    --background: 210 20% 98%;
+    --foreground: 220 15% 16%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 15% 16%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 15% 16%;
+    --primary: 24 95% 53%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 228 8% 16%;          /* #252830 */
-    --secondary-foreground: 0 0% 96%;
-    --muted: 228 8% 14%;
-    --muted-foreground: 240 5% 65%;   /* #a1a1aa */
-    --accent: 21 90% 48%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 84% 55%;
+    --secondary: 215 14% 91%;
+    --secondary-foreground: 220 12% 24%;
+    --muted: 214 16% 94%;
+    --muted-foreground: 215 10% 42%;
+    --accent: 214 14% 89%;
+    --accent-foreground: 220 15% 18%;
+    --destructive: 0 72% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 228 10% 20%;            /* #2e323b */
-    --input: 228 10% 20%;
-    --ring: 21 90% 48%;
+    --border: 214 14% 82%;
+    --input: 214 14% 82%;
+    --ring: 24 95% 53%;
     --radius: 6px;
 
-    /* DCC-specific tokens */
-    --viewport-bg: #121316;
-    --panel-bg-deep: #16171b;
-    --panel-bg-surface: #1e2025;
-    --panel-bg-raised: #252830;
-    --panel-border: #2e323b;
-    --panel-border-subtle: #22252c;
-    --dcc-orange: #ea580c;
-    --dcc-orange-glow: #f97316;
-    --dcc-orange-hover: #fb923c;
-    --dcc-cyan: #38bdf8;
-    --dcc-red: #ef4444;
-    --dcc-gold: #eab308;
-    --dcc-emerald: #10b981;
-    --dcc-purple: #a855f7;
-    --text-high: #f4f4f5;
-    --text-mid: #a1a1aa;
-    --text-faint: #71717a;
+    --viewport-bg: #3b3c3f;
+    --panel-bg-deep: #f7f8fa;
+    --panel-bg-surface: #ffffff;
+    --panel-bg-raised: #e7e9ed;
+    --panel-border: #cfd3d8;
+    --panel-border-subtle: #e2e5e9;
+    --dcc-orange: #e87520;
+    --dcc-orange-glow: #c95f12;
+    --dcc-orange-hover: #f28a3a;
+    --dcc-cyan: #168aad;
+    --dcc-red: #dc3f45;
+    --dcc-gold: #b88700;
+    --dcc-emerald: #14855f;
+    --dcc-purple: #7b5cc7;
+    --text-high: #25282d;
+    --text-mid: #60656d;
+    --text-faint: #8a9098;
 
-    color-scheme: dark;
+    color-scheme: light;
 }
 
 html, body, #root {
@@ -155,8 +155,8 @@ kbd, .kbd {
 /* subtle grid overlay for panels */
 .dcc-tech-bg {
     background-image:
-        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+        linear-gradient(rgba(35,40,48,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(35,40,48,0.035) 1px, transparent 1px);
     background-size: 24px 24px;
 }
 
@@ -184,8 +184,8 @@ kbd, .kbd {
 .assist-md ul { list-style: disc; }
 .assist-md ol { list-style: decimal; }
 .assist-md li { margin: 0.1rem 0; }
-.assist-md code { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; background: rgba(255,255,255,0.06); padding: 0 3px; border-radius: 3px; color: var(--dcc-orange-glow); }
-.assist-md pre { background: rgba(0,0,0,0.35); padding: 6px 8px; border-radius: 4px; overflow-x: auto; margin: 0.3rem 0; }
+.assist-md code { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; background: rgba(35,40,48,0.07); padding: 0 3px; border-radius: 3px; color: var(--dcc-orange-glow); }
+.assist-md pre { background: rgba(35,40,48,0.06); padding: 6px 8px; border-radius: 4px; overflow-x: auto; margin: 0.3rem 0; }
 .assist-md pre code { background: none; padding: 0; color: inherit; }
-.assist-md strong { color: #fff; }
+.assist-md strong { color: var(--text-high); }
 .assist-md h1, .assist-md h2, .assist-md h3 { font-size: 12px; font-weight: 600; margin: 0.4rem 0 0.2rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--dcc-orange-glow); }

@@ -123,7 +123,7 @@ export class SkeletonFitter {
       }
       if (![gPos.x, gPos.y, gPos.z].every(Number.isFinite)) { status = 'error'; message += ' · non-finite position'; }
       return {
-        name: b.name, parent: b.parent, kind: b.kind, order: bones.indexOf(b),
+        name: b.name, parent: b.parent, kind: b.kind, skinned: b.skinned !== false && (b.kind === 'deform' || b.kind === 'twist' || b.kind === 'corrective'), fbx_attr_type: b.fbx_attr_type || null, order: bones.indexOf(b),
         globalPos: arr3(gPos), globalRot: arr4(gRot), localPos: arr3(lPos), localRot: arr4(lRot), scale: [1, 1, 1],
         method: meta.method, anchor: meta.anchor, status, message, lengthRatio: tLen > 0.005 ? fLen / tLen : null,
       };
