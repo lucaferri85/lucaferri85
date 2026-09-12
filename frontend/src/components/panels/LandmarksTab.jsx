@@ -3,11 +3,24 @@ import { useAppStore } from '../../store/appStore';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { LANDMARK_GROUPS } from '../../lib/landmarks';
-import { Target, RotateCcw, FlipHorizontal2, ChevronRight, ChevronDown, X } from 'lucide-react';
+import { Target, RotateCcw, FlipHorizontal2, ChevronRight, ChevronDown, X, ScanSearch, Move } from 'lucide-react';
 import { toast } from 'sonner';
+import { runAutoDetect } from '../../lib/landmarkService';
+
+export const CONF = {
+  high:      { label: 'HIGH',   color: 'var(--dcc-emerald)' },
+  medium:    { label: 'MEDIUM', color: 'var(--dcc-gold)' },
+  low:       { label: 'LOW',    color: 'var(--dcc-orange-glow)' },
+  not_found: { label: 'NOT FOUND', color: 'var(--destructive)' },
+  manual:    { label: 'MANUAL', color: 'var(--dcc-cyan)' },
+};
 
 export default function LandmarksTab() {
   const landmarks = useAppStore(s => s.landmarks);
+  const meshLoaded = useAppStore(s => s.meshLoaded);
+  const landmarkMode = useAppStore(s => s.landmarkMode);
+  const setLandmarkMode = useAppStore(s => s.setLandmarkMode);
+  const detectionRun = useAppStore(s => s.detectionRun);
   const activeLandmarkId = useAppStore(s => s.activeLandmarkId);
   const setActiveLandmark = useAppStore(s => s.setActiveLandmark);
   const cancelPlacing = useAppStore(s => s.cancelPlacing);
@@ -56,13 +69,35 @@ export default function LandmarksTab() {
             }}
           />
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="grid grid-cols-2 gap-1.5">
+          <Button
+            data-testid="auto-detect-landmarks-btn"
+            size="sm"
+            className="h-7 text-[11px] text-white gap-1.5 col-span-2"
+            style={{ background: 'var(--dcc-orange)' }}
+            onClick={() => runAutoDetect()}
+            disabled={!meshLoaded}
+          >
+            <ScanSearch className="w-3 h-3" /> {detectionRun ? 'RESET / RE-DETECT LANDMARKS' : 'AUTO DETECT LANDMARKS'}
+          </Button>
+          <Button
+            data-testid="edit-landmarks-btn"
+            size="sm"
+            variant="outline"
+            className="h-7 text-[11px] border-[color:var(--panel-border)] gap-1"
+            style={landmarkMode === 'edit' ? { borderColor: 'var(--dcc-orange)', color: 'var(--dcc-orange-glow)' } : {}}
+            onClick={() => { cancelPlacing(); setLandmarkMode('edit'); toast.info('Edit mode: drag any marker in the viewport or type coordinates'); }}
+          >
+            <Move className="w-3 h-3" /> EDIT LANDMARKS
+          </Button>
           <Button
             data-testid="start-placement-btn"
             size="sm"
-            className="h-7 flex-1 text-[11px] text-white gap-1.5"
-            style={{ background: 'var(--dcc-orange)' }}
-            onClick={startPlacing}
+            variant="outline"
+            className="h-7 text-[11px] border-[color:var(--panel-border)] gap-1.5"
+            style={placingMode ? { borderColor: 'var(--dcc-orange)', color: 'var(--dcc-orange-glow)' } : {}}
+            onClick={() => { setLandmarkMode('manual'); startPlacing(); }}
+            title="Fallback: place the remaining landmarks one by one by clicking the mesh"
           >
             {renderPlaceLabel(placingMode)}
           </Button>
@@ -74,18 +109,26 @@ export default function LandmarksTab() {
             onClick={() => { mirrorAllFromLeft(); toast.success('Mirrored L to R'); }}
             title="Mirror all placed LEFT landmarks to RIGHT"
           >
-            <FlipHorizontal2 className="w-3 h-3" />
+            <FlipHorizontal2 className="w-3 h-3" /> MIRROR
           </Button>
           <Button
             data-testid="reset-landmarks-btn"
             size="sm"
             variant="outline"
             className="h-7 text-[11px] border-[color:var(--panel-border)] gap-1"
-            onClick={() => { resetAll(); toast.success('Landmarks reset'); }}
+            onClick={() => { resetAll(); setLandmarkMode('idle'); toast.success('Landmarks reset'); }}
           >
-            <RotateCcw className="w-3 h-3" />
+            <RotateCcw className="w-3 h-3" /> RESET
           </Button>
         </div>
+        {detectionRun && (
+          <div className="flex items-center gap-2 text-[9px] font-mono" data-testid="detection-summary">
+            {['high', 'medium', 'low', 'not_found'].map(c => (
+              <span key={c} style={{ color: CONF[c].color }}>{CONF[c].label} {landmarks.filter(l => l.confidence === c).length}</span>
+            ))}
+            <span style={{ color: 'var(--dcc-cyan)' }}>MANUAL {landmarks.filter(l => l.confidence === 'manual').length}</span>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto dcc-scroll">
@@ -108,7 +151,7 @@ function renderPlaceLabel(placingMode) {
   if (placingMode) {
     return (<><X className="w-3 h-3" /> STOP</>);
   }
-  return (<><Target className="w-3 h-3" /> START PLACING</>);
+  return (<><Target className="w-3 h-3" /> MANUAL PLACEMENT</>);
 }
 
 function GroupSection(props) {
@@ -158,8 +201,9 @@ function LandmarkRow(props) {
     border: item.placed ? 'none' : '1px solid ' + color,
     opacity: item.mirrored ? 0.55 : 1,
   };
-  const statusColor = item.placed ? 'var(--dcc-emerald)' : 'var(--text-faint)';
-  const statusLabel = active ? 'ACTIVE' : (item.placed ? 'PLACED' : 'PENDING');
+  const conf = item.placed && item.confidence && CONF[item.confidence] ? CONF[item.confidence] : (!item.placed && item.confidence === 'not_found' ? CONF.not_found : null);
+  const statusColor = active ? 'var(--dcc-orange-glow)' : conf ? conf.color : (item.placed ? 'var(--dcc-emerald)' : 'var(--text-faint)');
+  const statusLabel = active ? 'ACTIVE' : conf ? conf.label : (item.placed ? 'PLACED' : 'PENDING');
 
   const applyEdit = (e) => {
     e.stopPropagation();
@@ -181,6 +225,11 @@ function LandmarkRow(props) {
         {item.mirrored && <span className="dcc-label text-[9px]" style={{color:'var(--dcc-orange-glow)'}}>MIR</span>}
         <span className="dcc-label text-[9px]" style={{ color: statusColor }}>{statusLabel}</span>
       </div>
+      {item.auto && item.note && (
+        <div className="pl-4 text-[9px] leading-snug" style={{ color: 'var(--text-faint)' }} data-testid={'landmark-note-' + item.id} title={item.note}>
+          {item.note.length > 110 ? item.note.slice(0, 110) + '…' : item.note}
+        </div>
+      )}
       {item.placed && !editing && (
         <div className="flex items-center gap-1 pl-4">
           <span className="dcc-metric text-[10px]">

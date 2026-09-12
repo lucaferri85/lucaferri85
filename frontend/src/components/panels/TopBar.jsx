@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Save, FolderOpen, Undo2, Redo2, Sparkles, Cpu } from 'lucide-react';
 import { toast } from 'sonner';
 import * as api from '../../lib/api';
+import { runValidation } from '../../lib/templateService';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 
 export default function TopBar() {
@@ -25,6 +26,9 @@ export default function TopBar() {
   const template = useAppStore(s => s.template);
   const templateSource = useAppStore(s => s.templateSource);
   const templateSavedId = useAppStore(s => s.templateSavedId);
+  const fitted = useAppStore(s => s.fitted);
+  const fitApproved = useAppStore(s => s.fitApproved);
+  const fitApproval = useAppStore(s => s.fitApproval);
   const undo = useAppStore(s => s.undo);
   const redo = useAppStore(s => s.redo);
   const historyLen = useAppStore(s => s.history.length);
@@ -62,6 +66,9 @@ export default function TopBar() {
           saved_template_id: templateSavedId,
           template_data: template,
         },
+        fitted: fitted || null,
+        fit_approved: fitApproved,
+        fit_approval: fitApproval,
       };
       if (projectId) {
         proj = await api.updateProject(projectId, payload);
@@ -83,6 +90,8 @@ export default function TopBar() {
     try {
       const p = await api.getProject(id);
       setProject(p);
+      const src = p.template?.source || p.template?.template_data?.source;
+      if (src === 'user_authoritative' && p.template?.template_data?.bones) runValidation(p.template.template_data).catch(() => {});
       toast.success(`Loaded: ${p.name}`);
       setLoadOpen(false);
     } catch (e) {

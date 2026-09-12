@@ -27,7 +27,8 @@ V1 scope requested by user: mesh import + interactive landmark placement + skele
 | LandmarkManager       | ✅ V1 | `store/appStore.js`, `panels/LandmarksTab.jsx` |
 | SkeletonTemplateManager | ✅ V1 | `lib/quinnTemplate.js`, `panels/BonesTab.jsx`, `POST /api/templates/validate` |
 | ProjectManager        | ✅ V1 | `panels/TopBar.jsx`, `POST/GET/PATCH/DELETE /api/projects` |
-| SkeletonFitter        | 🟡 Interface only | `modules/SkeletonFitter.js` |
+| SkeletonFitter        | ✅ Phase B | `modules/SkeletonFitter.js`, `lib/fitRules.js`, `lib/fitService.js` |
+| LandmarkDetector      | ✅ Phase B.1 | `lib/landmarkDetector.js`, `lib/meshSampler.js`, `lib/landmarkService.js` |
 | SkinWeightGenerator   | 🟡 Interface only | `modules/SkinWeightGenerator.js` |
 | RigValidator          | 🟡 Interface only | `modules/RigValidator.js` |
 | UnrealExporter        | 🟡 Interface only | `modules/UnrealExporter.js` |
@@ -60,21 +61,41 @@ V1 scope requested by user: mesh import + interactive landmark placement + skele
 - **Docs**: `/app/docs/QUINN_EXPORT_GUIDE.md`, `/app/docs/ue5_export_quinn_skeleton.py`. Fixtures: `/app/tests/fixtures/*.fbx` (+ generator).
 - Tests: iteration_2 — 25/25 backend, all frontend flows pass.
 
-## Phase A checkpoint (STOP — awaiting user)
-User must import the real SKM_Quinn FBX exported from UE5 and confirm hierarchy/transforms before Phase B is authorised.
+## Phase A checkpoint — APPROVED by user (Jun 2026). User imported SKM_Quinn_Simple FBX (89 bones).
+
+## What's implemented (Phase B — Auto Fit Skeleton, Jun 2026)
+- **SkeletonFitter** (`modules/SkeletonFitter.js`, rules in `lib/fitRules.js`): template-driven, name-agnostic pipeline —
+  1. roots kept at template origin; 2. 20 landmark-driven joints (`JOINT_LANDMARKS`); 3. head skull-base heuristic from head_center/head_top; 4. spine/neck intermediates by template arc-length (`CHAINS`); 5. IK bones `FOLLOWS` their deform source; 6. every other bone (twist_01/02, metacarpals, fingers, interaction, center_of_mass, correctives…) transferred with ONE similarity transform (rotation+uniform scale) of its nearest landmark/chain anchor segment (`SEGMENT_END`, hand tip landmark for finger sub-hierarchies); 7. orientations = template refGlobalRot swung by segment direction change (roll preserved); locals recomputed.
+  Output keeps identical names/order/parents/kinds. Per-bone `method/anchor/status/message/lengthRatio`; missing landmarks → bone + everything derived through it flagged WARN (never silently placed), scale clamp / degenerate segments → WARN, non-finite → ERROR.
+- **Compare With Source** (`modules/RigValidator.compareWithSource`): count, missing/extra names, uniqueness, order, parent map, kinds, root, per-bone depth, finite transforms, collapsed bones, length outliers, fit diagnostics, template SHA match → PASS/WARNING/FAIL with items.
+- **Fit tab** (right panel): AUTO FIT (gated: authoritative+validated template AND ≥6 core landmarks, blockers shown), summary counts, per-bone list with filters (all/warn/error/ok/manual) + search, Compare block, EDIT FIT (drag orange joints in viewport on camera plane; subtree follows; mirrored to `_l/_r` twin when symmetry ON), RESET BONE (subtree → auto-fit), RESET FIT, BACK TO LANDMARKS, show/hide fitted, MARK FIT APPROVED (skinning still locked).
+- Viewport: fitted skeleton overlay (orange; warn=gold, error=red, IK=cyan, twist=violet; manual joints blue), selected joint highlight; Bone Inspector shows FITTED transforms.
+- Persistence: `Project.fitted` + `fit_approved` (backend), restored on load; validation auto-runs on load for authoritative templates. Changing/resetting template clears the fit.
+- Test hooks: `window.__quinnStore`, `window.__quinnLandmarks`, `window.__quinnFit`. Fixture `/app/tests/fixtures/test_quinn_like_89.fbx` (89-bone Quinn_Simple-shaped, NOT a UE export).
+- Tests: iteration_3 — 30/30 backend; all frontend flows pass after fix (partial landmarks now WARN).
+
+## Phase B checkpoint (STOP — awaiting user approval of fitted skeleton on real SKM_Quinn_Simple)
+
+## What's implemented (Phase B.1 — Automatic Landmark Detection, Jun 2026) — agent-tested (iteration_5: 31/31 backend, all frontend flows PASS); awaiting user re-detect on real armored warrior (baseline 26/30 · 4 HIGH · 19 MEDIUM · 3 LOW · 4 NOT FOUND)
+- **Primary action** `AUTO DETECT LANDMARKS` (→ `RESET / RE-DETECT LANDMARKS` after a run). `EDIT LANDMARKS`, `MANUAL PLACEMENT` (sequential fallback — starts at first NOT FOUND), `MIRROR`, `RESET`. Detection never triggers Auto Fit; it marks an existing fit `fitStale`. Store: `landmarkMode idle|edit|manual`, `detectionRun`, per-landmark `confidence high|medium|low|not_found|manual`, `note`, `auto`; restored on project load.
+- **Detector** `lib/landmarkDetector.js` on an **area-uniform surface sample** (`lib/meshSampler.js`, ~80k pts, tessellation-independent): midline from torso cluster (not bbox — weapons/capes shift bbox); overlapping horizontal cross-sections → x-clusters (adaptive gap); head top skips thin protrusions (spikes/horns); neck = narrowest central section with real narrowing check; crotch = lowest run of two-leg split; pelvis/hips/spine from centroids; legs tracked downward per side (hanging hands rejected; merged boots → side-half centroid flagged LOW); knee = clear narrowing else proportional along tracked leg; armpit scanned DOWN from neck with shoulder-bulge and detached-pauldron rejection; shoulder = torso half-width at armpit + 1.5 %H (pauldron ignored); arms = axis-band centroids within 7 %H of shoulder→hand axis (pauldron/cape volume excluded), thin sustained radial profile cuts weapons/staffs; arm-length plausibility; T-pose fallback.
+- **Policy**: no proportional guesses for structural joints → NOT FOUND with reason. Post-checks downgrade: segment-length plausibility (thigh/shin/upperarm/forearm/hand vs height; extreme → NOT FOUND), lateral drift along leg chain, vertical joint order, inside-cross-section test, L/R mismatch (else averaged when symmetry ON). Finger tips always NOT FOUND (Phase C).
+- Viewport: landmark markers render on top (depthTest off) so interior joints are visible; row notes explain each classification.
+- Fixtures/harness: `tests/fixtures/make_armored_obj.py [--warrior|--tpose]` → `armored_humanoid.obj`, `armored_warrior.obj` (helmet spike, sword in right hand, pauldrons, gauntlets, touching boots), `armored_tpose.obj`; `node tests/run_detector.mjs <obj>`; `tests/debug_sections.mjs`. Results: humanoid HIGH 4 · MEDIUM 17 · LOW 5 · NOT FOUND 4; warrior HIGH 3 · MEDIUM 14 · LOW 9 · NOT FOUND 4 (sword hand LOW, shoulders at torso width not pauldron, hips/pelvis LOW because thighs touch → split found low).
+
+## Phase B.1 checkpoint (STOP — user will Reset / Re-Detect on real armored warrior; no Phase C without approval)
 
 ## Prioritized backlog
 
-### Phase B — Auto Fit Skeleton (authorised only after real Quinn FBX validated)
-- Landmark-driven solve; unmapped bones (correctives, twist_02, metacarpals…) keep template-relative local transforms scaled **segment-aware** (arm→arm, leg→leg, spine→torso, hand→hand); IK bones follow functional source; unfittable → WARNING, never dropped/renamed/re-parented.
-- COMPARE WITH SOURCE TEMPLATE: bone-for-bone names + parents + count diff.
-- Live fitted-skeleton preview; regenerate on landmark change.
+### Phase C — Automatic Skinning + Weights (locked until user approves fit) — MANDATORY REQUIREMENT (user, Jun 2026)
+- Standard workflow must be fully automatic: `Import Mesh → Auto Detect Landmarks → Auto Fit exact Quinn skeleton → Automatic Skinning + Automatic Weights → Validate Weights → UE5 Compatibility Validation → Export`. The user must NOT assign vertex groups or weight-paint manually.
+- Weighting must be **anatomy-aware, based on the fitted skeleton** (not mere nearest-bone): smooth, normalised weights with correct influence transitions at shoulders, clavicles, elbows, wrists, fingers, pelvis/hips, knees, ankles, feet.
+- Quinn auxiliary/twist bones handled correctly (twist blending along upperarm/lowerarm/thigh/calf); IK / interaction / center_of_mass / correctives excluded from deformation so the result stays compatible with the imported Quinn structure.
+- **Weight validation** is required: unweighted vertices, invalid influences (non-deform bones), non-normalised weights, excessive influences per vertex (UE5 limit), disconnected/incorrect influences, suspicious weight leakage between unrelated body regions.
+- Manual weight editing may exist only as an advanced correction tool, never required in the standard workflow.
+- Also: finger landmarks for all 5 fingers, Mirror Hand Rig L→R, heel → foot roll refinement.
 
-### Phase C — Manual Finger Rig + Rig Preview Correction
-- Finger landmarks for all 5 fingers (knuckle + tip), intermediate/metacarpal joints derived proportionally from template.
-- Direct joint drag in viewport (children follow), Mirror Hand Rig L→R, independent final correction, re-validate.
-
-### Phase D — Skinning (Python worker, heat diffusion; twist blending; IK excluded), Validation, Export (headless Blender FBX, Y-up m → Z-up cm).
+### Phase D — Validation + Export (headless Blender FBX, Y-up m → Z-up cm).
 
 ### Deferred (user said NOT yet): Sample Mesh Library.
 

@@ -4,8 +4,8 @@ import { CheckCircle2, Circle, Lock } from 'lucide-react';
 const STAGES = [
   { id: 'import',     step: '01', name: 'IMPORT MESH',     desc: 'Load GLB / GLTF / FBX / OBJ' },
   { id: 'landmarks',  step: '02', name: 'PLACE LANDMARKS', desc: 'Define anatomical anchors' },
-  { id: 'skeleton',   step: '03', name: 'SKELETON TEMPLATE', desc: 'Import & validate authoritative Quinn FBX' },
-  { id: 'skinning',   step: '04', name: 'SKINNING',        desc: 'Heat-diffusion weights · Phase C' },
+  { id: 'skeleton',   step: '03', name: 'FIT SKELETON',    desc: 'Import Quinn FBX · Auto Fit · Edit Fit · Compare' },
+  { id: 'skinning',   step: '04', name: 'SKINNING',        desc: 'Locked until fit approved · Phase C' },
   { id: 'validation', step: '05', name: 'UE5 VALIDATE',    desc: 'Compare with source template · Phase B' },
   { id: 'export',     step: '06', name: 'EXPORT RIG',      desc: 'FBX / GLTF for UE5 · Phase D' },
 ];
@@ -17,15 +17,15 @@ export default function BottomStageBar() {
   const setStage = useAppStore(s => s.setStage);
   const meshLoaded = useAppStore(s => s.meshLoaded);
   const landmarks = useAppStore(s => s.landmarks);
-  const showSkeleton = useAppStore(s => s.showSkeleton);
-  const toggleSkeleton = useAppStore(s => s.toggleSkeleton);
+  const fitted = useAppStore(s => s.fitted);
+  const setRightTab = useAppStore(s => s.setRightTab);
 
   const placedCount = landmarks.filter(l => l.placed).length;
 
   const statusFor = (id) => {
     if (id === 'import')    return meshLoaded ? 'done' : 'active';
     if (id === 'landmarks') return placedCount === landmarks.length ? 'done' : (meshLoaded ? 'active' : 'locked');
-    if (id === 'skeleton')  return showSkeleton ? 'done' : (meshLoaded ? 'ready' : 'locked');
+    if (id === 'skeleton')  return fitted ? 'done' : (meshLoaded ? 'ready' : 'locked');
     return IMPLEMENTED.has(id) ? 'ready' : 'planned';
   };
 
@@ -49,7 +49,8 @@ export default function BottomStageBar() {
             onClick={() => {
               if (!clickable) return;
               setStage(s.id);
-              if (s.id === 'skeleton' && !showSkeleton) toggleSkeleton();
+              if (s.id === 'skeleton') setRightTab('fit');
+              if (s.id === 'landmarks') setRightTab('landmarks');
             }}
             disabled={!clickable}
             className={`flex-1 flex items-center gap-3 px-4 border-r relative transition-colors disabled:opacity-40 ${clickable ? 'hover:bg-[color:var(--panel-bg-surface)]' : ''}`}

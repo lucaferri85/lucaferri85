@@ -1,0 +1,44 @@
+{
+  "summary": "Phase B (Auto Fit Skeleton) tested end-to-end. Backend: 30/30 pytest cases green — new suite test_phase_b_fit.py verifies Project.fitted (default null) + fit_approved (default false), PATCH persists both fields with full bone diagnostics and clears on null; existing Phase A / project / template regressions all pass. Frontend: full happy path against public URL passes — before FBX auto-fit-btn disabled with correct blocker ('Authoritative template must be imported and validated · Place core landmarks 0/26'); after upload of test_quinn_like_89.fbx template-meta-bones=89, template-validation-pill data-status='valid'; after placing 26 core landmarks via window.__quinnStore hook and clicking auto-fit-btn: fit-bone-count 89, warn 0, error 0, compare-result data-overall='pass', all six compare-check ids (names_missing/names_extra/parents/order/root/depth) data-status='pass'; store bone-count === 89 and every fitted bone's parent equals template.bones parent (parity=true); specific bone methods verified: root='template-root', pelvis='landmark', spine_03='chain', upperarm_twist_01_l='segment', ik_hand_l='follows', middle_02_l='segment', interaction='segment', center_of_mass='segment'. Manual joint edit via window.__quinnFit.moveFittedJoint('calf_l', +0.03/+0.02/0): calf_l translated by exact delta, foot_l/ball_l descendants moved by same delta, calf_r mirrored (-x) with symmetry ON; manual flags set on both sides; fit-filter-manual reveals rows; fit-bone-reset-calf_l restores calf_l subtree (calf_l/foot_l manual→false, calf_r still manual as expected). Symmetry OFF: moving calf_l does NOT move calf_r (delta_r = 0). Button behaviours: fit-edit-toggle text toggles 'EDIT FIT (DRAG JOINTS)' ↔ 'EXIT EDIT FIT'; fitted-visibility-toggle text HIDE↔SHOW; compare-source-btn re-runs and returns pass; reset-fit-btn clears manual count to 0; approve-fit-btn text 'MARK FIT APPROVED'→'APPROVED ✓' and disabled=true when no fit; back-to-landmarks-btn switches store.stage='landmarks' + rightTab='landmarks'. BonesTab → bone-node-hand_l click reveals bone-inspector with FITTED group. Stage bar: stage-nav-skeleton contains 'FIT SKELETON', clicking sets rightTab='fit'; stage-nav-skinning is disabled. Different-template import AND skeleton-reset-btn both clear window.__quinnStore.getState().fitted to null. Persistence (Section H): after fit + manual move + project-save-button + full page reload + project-load-button + first project-load-item → fitted.bones.length===89, calf_l/foot_l/calf_r subtree manual flags all preserved (10 bones), templateSource='user_authoritative', and auto-fit-btn is re-enabled (validation auto-runs). ZERO console errors across all runs.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "app lifecycle", "issue": "Deprecated @app.on_event('shutdown') still in server.py:510 — FastAPI lifespan handler is the current API"},
+      {"endpoint": "GET /api/projects", "issue": "landmarks_total falls back to 0 for legacy docs (removed the '... or 28' magic in prior fix — verify still intended)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Partial-landmark Auto Fit (right side missing, symmetry OFF)", "issue": "Right-side bones are silently solved to template/fallback positions but their per-bone status stays 'ok' — the fitter never propagates report.missing_landmarks into per-bone status='warn'. Observed: warn_count=0, error_count=0, compare-result data-overall='pass', fit-bone-lowerarm_r data-status='ok'. Expected per review request: warn_count > 0, right-side bones (e.g. lowerarm_r/upperarm_r/thigh_r/…) data-status='warn' with a message like 'no fitted ancestor / landmark missing', and compare-result data-overall='warning' (fit_diagnostics WARN) while names/parents/order remain PASS. Note: fit-missing-landmarks pill IS shown correctly ('Missing landmarks: clavicle_r, shoulder_r, elbow_r, wrist_r, hip_r, knee_r, ankle_r, toe_r' — heel_r is missing from the list because heel is not in JOINT_LANDMARKS). Bone count still 89 (correct).", "affected_selectors": ["[data-testid=fit-warn-count]", "[data-testid=fit-bone-lowerarm_r]", "[data-testid=compare-result]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase_b_fit.py",
+    "/app/backend/tests/test_templates_phase_a.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "SkeletonFitter: for each bone whose landmark or chain requires a missing landmark id in report.missing_landmarks, downgrade per-bone status from 'ok' to 'warn' and propagate a message (parallels the existing 'tip landmark not placed' warn path for chains). This will lift fit-warn-count > 0 and drive compare fit_diagnostics → 'warning' as the spec requires.",
+    "RigValidator.compareWithSource: ensure the overall verdict reflects fitted per-bone warn statuses (fit_diagnostics/status) even when names/parents/order/root/depth all pass — currently overall stayed 'pass' because no bone was tagged 'warn'."
+  ],
+  "critical_code_review_comments": [
+    "SkeletonFitter.js line 130 correctly detects missing_landmarks but the information is not fed back into out[].status, causing silently-fitted right-side bones to appear healthy. Fix: after building `out`, iterate JOINT_LANDMARKS and mark bones whose driving landmark is in `missing` with status='warn' + message='driving landmark <id> not placed' (skip bones already flagged error).",
+    "server.py still has deprecated @app.on_event('shutdown') — migrate to FastAPI lifespan context manager before adding more startup/shutdown hooks.",
+    "server.py grew to 513 lines (still under advisory limit), but validate_template_structure is ~170 lines; consider extracting into /app/backend/validators/template.py before Phase C adds skinning validators.",
+    "canAutoFit gate in fitService.js hard-codes `placed < 6` — same 6-core threshold is also encoded elsewhere; consider centralising in fitRules.js so tests + UI + gating agree.",
+    "Fitted bone rows expose data-status but the CompareBlock overall does NOT expose a machine-readable list of individual fit_diagnostics per bone — automation had to fall back to the store hook. Adding data-testid=compare-check-fit_diagnostics with data-status would close the gap (already exists for the six spec checks)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase_b_fit.py"
+  ],
+  "success_rate": {"backend": "100% (30/30 pytest)", "frontend": "~95% — 1 diagnostics gap on partial-landmark warn propagation; all other Phase B flows PASS"},
+  "test_credentials": "none required (no auth)",
+  "seed_data_creation": "TEST_PhaseB_Fit projects created per-test and cleaned up in fixture teardown; sha256-upserted test templates from prior iterations still exist and are re-cleaned by their own fixtures.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend suite in /app/backend/tests/ is 30 cases (~3s): backend_test.py + test_templates_phase_a.py + test_phase_b_fit.py. All Phase B UI flows exercised against the public URL using window.__quinnStore / window.__quinnLandmarks / window.__quinnFit hooks — do NOT attempt WebGL canvas drags. The only outstanding functional bug is the fit-diagnostics warn-propagation in SkeletonFitter (see action items). After main agent's fix, re-run just section G (partial landmarks + symmetry OFF) — expect fit-warn-count>0, fit-bone-lowerarm_r data-status='warn', compare-result data-overall='warning', names/parents still 'pass'. Skinning stage remains locked. Test fixtures used: /app/tests/fixtures/test_quinn_like_89.fbx (authoritative 89-bone) and /app/tests/fixtures/test_skeleton_binary.fbx (different template for reset check).",
+  "rca of the issue": "SkeletonFitter._fit() gathers `missing = Object.entries(JOINT_LANDMARKS).filter(([bone,id]) => byName[bone] && !lm[id])` (line 130) purely for the report but never mutates the affected bones' per-row `status`. Right-side bones without their driving landmark still get solved through segment/chain fall-throughs (e.g. mirroring parent segment) and inherit status='ok'. Consequence: (a) UI badge fit-warn-count=0, (b) individual fit-bone-<name> data-status stays 'ok', (c) RigValidator.compareWithSource sees no warn bones and returns overall='pass'. Fix: after `const out = bones.map(...)`, loop `for (const b of out) if (JOINT_LANDMARKS[b.name] && missing.includes(JOINT_LANDMARKS[b.name]) && b.status==='ok') { b.status='warn'; b.message = (b.message?b.message+' · ':'') + `driving landmark ${JOINT_LANDMARKS[b.name]} not placed`; counts.ok--; counts.warn++; }`. Recompute `report.warnings` after that. This yields spec-conforming warn counts and compare 'warning' overall while keeping bone count / names / parents intact."
+}

@@ -40,7 +40,7 @@ export default function DiagnosticsTab() {
       ? 'Blocked: run VALIDATE TEMPLATE STRUCTURE'
       : templateValidation.status === 'invalid'
         ? 'Blocked: template structure INVALID'
-        : 'Phase B (Auto Fit) awaiting authorization';
+        : 'Auto Fit available — open the Fit tab';
 
   const checks = [
     { label: 'Mesh loaded',           status: meshLoaded ? 'pass' : 'pending', detail: meshLoaded ? (meshFile + ' · ' + meshVerts + ' verts') : 'Import a humanoid mesh' },

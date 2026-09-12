@@ -1,0 +1,35 @@
+{
+  "summary": "Phase 'AUTOMATIC LANDMARK DETECTION' verified end-to-end against public preview URL. Backend regression: 31/31 pytest cases green (/api/health OK). Frontend UI + integration: primary AUTO DETECT flow, anatomical correctness, re-detection stability, RESET, MANUAL PLACEMENT fallback, EDIT LANDMARKS coord editor, symmetric humanoid fixture, and project SAVE→reload→LOAD persistence all PASS. Node harness counts reproduced exactly in-browser: armored_warrior.obj → HIGH 3 · MEDIUM 14 · LOW 9 · NOT FOUND 4 (26/30 placed); armored_humanoid.obj → HIGH 4 · MEDIUM 17 · LOW 5 · NOT FOUND 4. All 4 finger tips (thumb_tip_l/r, index_tip_l/r) are NOT FOUND (by design). detectionRun=true, landmarkMode='edit', stage='landmarks', fitted=false after detection — Auto Fit is NEVER triggered. Button label toggles AUTO DETECT LANDMARKS ↔ RESET / RE-DETECT LANDMARKS; start-placement-btn label toggles MANUAL PLACEMENT ↔ STOP; MANUAL PLACEMENT activates first NOT FOUND (thumb_tip_l), landmarkMode='manual', placingMode=true, activeLandmarkId='thumb_tip_l'. EDIT LANDMARKS sets mode 'edit'. Coordinate inputs landmark-<id>-x/y/z + APPLY updates position and sets confidence='manual'. CLEAR unplaces. RESET returns detectionRun=false, landmarkMode='idle', placed=0, detection-summary removed, button label back to AUTO DETECT LANDMARKS. Re-detection is stable — same counts, no duplicates (length still 30), no console errors. Anatomical sanity (armored_warrior, midline≈0.109): head_top.y > head_center.y > neck_base.y > chest.y > spine_mid.y > pelvis.y > knee.y > ankle.y > heel.y (order strict, all pairs pass). L/R polarity holds for hip/knee/ankle/shoulder/elbow/wrist (_l x > midline, _r x < midline). |x_l-midline|≈|x_r-midline| within 5 cm. Shoulders at |x-midline| ≈ 0.19 (<0.25 threshold) — inside torso, NOT out at pauldron (0.33). hand_r (sword hand) confidence=LOW (never HIGH). Elbow/wrist y between shoulder and hand. Symmetric humanoid: L/R mirror asymmetry max 0.195 mm (<1 mm target); shoulder |x|=0.211 (not at pauldron 0.43). Persistence: SAVE with project name 'TEST_LandmarkPersist' → projectId returned; reload page + LOAD → 26 placed landmarks with confidence + notes preserved. Toast 'Loaded: TEST_LandmarkPersist' visible. Zero console errors during real user flows.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Project load — detection run flag not restored", "issue": "After a saved project with detected landmarks is reloaded via project-load-button, landmarks/confidences/notes/positions are all correctly restored (26 placed on armored_humanoid) BUT store.detectionRun is false and stage is not 'landmarks'. Consequence: (a) button label shows 'AUTO DETECT LANDMARKS' instead of 'RESET / RE-DETECT LANDMARKS'; (b) data-testid=detection-summary is not rendered even though every restored landmark still has a confidence label. Users may think they need to re-run detection. Suggest: on load, set detectionRun = landmarks.some(l=>l.auto || l.confidence!=='pending') and landmarkMode='edit'.", "affected_selectors": ["[data-testid=auto-detect-landmarks-btn]", "[data-testid=detection-summary]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_phase_b_fit.py",
+    "/app/backend/tests/test_templates_phase_a.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: On project load, re-derive detectionRun from the loaded landmarks (any landmark.auto || confidence in high|medium|low|not_found|manual) so the button correctly reads 'RESET / RE-DETECT LANDMARKS' and detection-summary re-appears after LOAD.",
+    "NICE-TO-HAVE: ViewportManager.renderFittedSkeleton crashed with 'Cannot read properties of undefined (reading 0)' when I injected a minimal fitted={bones:[{name:'root'}]} for a stale-fit test. It is not reachable from user flow (real fits always have full structure), but a defensive guard on missing bone.head/tail arrays would prevent a whole-app crash boundary if a corrupt project ever loads."
+  ],
+  "critical_code_review_comments": [
+    "landmarkService.runAutoDetect never invokes fit — confirmed by both source review and runtime state (fitted=false after detection). applyDetectedLandmarks correctly sets fitStale=!!state.fitted, so an existing fit is marked stale on re-detect (not auto-re-run). Meets the checkpoint requirement.",
+    "LandmarksTab correctly renders data-testid=landmark-note-<id> only when item.auto && item.note — after project load, item.auto flag is preserved so notes still render even though detection-summary doesn't (see integration issue). Consistent behaviour would restore detectionRun on load.",
+    "appStore.resetAllLandmarks correctly sets fitStale=!!fitted and clears landmarkMode/placingMode/detectionRun in one atomic set().",
+    "renderFittedSkeleton in viewportManager should guard against bones lacking head/tail arrays (crash observed when injecting malformed fitted for stale-test)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (31/31 pytest)", "frontend": "100% — all requested landmark detection flows PASS; 1 minor persistence UX regression only"},
+  "test_credentials": "none (no auth in this app)",
+  "seed_data_creation": "TEST_LandmarkPersist project (id=ac6e2d08-2128-40bd-b341-c1dc34244173) created via UI SAVE to verify reload/LOAD persistence. Not cleaned up — safe to leave, prefixed TEST_.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Use window.__quinnStore.getState() for all landmark verification (bypass WebGL canvas). Fixtures at /app/tests/fixtures/armored_warrior.obj (asymmetric, sword in +X-negative hand, midline shifted ~+0.109 X) and armored_humanoid.obj (symmetric, no weapon, midline ~0). Node harness at /app/tests/run_detector.mjs prints ground-truth per-landmark output. detectionRun/landmarkMode/placingMode/activeLandmarkId are the state hooks that drive the 3 primary buttons. finger tips are always NOT FOUND by design (4). window.__quinnDetect.runAutoDetect() and window.__quinnFit.* also exposed for scripted flows. Skinning tab is locked and out of scope. If retesting persistence, note the minor detectionRun-not-restored issue documented above.",
+  "rca of the issue": "detectionRun-not-restored on project LOAD: appStore has no dedicated setter for detectionRun/landmarkMode on the load path; the loaded snapshot restores the landmarks array (with auto/confidence/note preserved) but does not touch detectionRun (initialised to false at store creation) nor landmarkMode ('idle'). The AUTO DETECT button label and detection-summary visibility gate on detectionRun, so both fall back to the pre-detection UI even though the underlying data is complete. Mitigation: in the project-load reducer, add `detectionRun: landmarks.some(l => l.auto)` and `landmarkMode: landmarks.some(l => l.auto) ? 'edit' : 'idle'`."
+}

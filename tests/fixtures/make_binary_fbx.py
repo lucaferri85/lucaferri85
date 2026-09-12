@@ -124,6 +124,71 @@ def build(unit_scale=1.0, up_axis=1, out='test_skeleton_binary.fbx'):
     print('wrote', out, len(data), 'bytes')
 
 
+def build_quinn_like(out='test_quinn_like_89.fbx'):
+    """89-bone Quinn_Simple-shaped hierarchy (cm, Y-up, identity rotations). Positions approximate."""
+    G = {}
+    PAR = {}
+
+    def add(name, parent, pos):
+        G[name] = pos
+        PAR[name] = parent
+    add('root', None, (0, 0, 0)); add('pelvis', 'root', (0, 96.75, 0))
+    spine = [('spine_01', (0, 105, 1)), ('spine_02', (0, 115, 1)), ('spine_03', (0, 124, 1.5)), ('spine_04', (0, 136, 2)), ('spine_05', (0, 147, 2)),
+             ('neck_01', (0, 155, 1)), ('neck_02', (0, 162, 1)), ('head', (0, 170, 2))]
+    prev = 'pelvis'
+    for n, p in spine:
+        add(n, prev, p); prev = n
+    for side, sx in (('l', 1), ('r', -1)):
+        def s(n): return n + '_' + side
+        arm = [('clavicle', 'spine_05', (3, 152, 1)), ('upperarm', 'clavicle', (18, 148, -2)), ('upperarm_twist_01', 'upperarm', (27, 142.7, -2.8)),
+               ('upperarm_twist_02', 'upperarm', (35, 137.3, -3.7)), ('lowerarm', 'upperarm', (44, 132, -4.5)), ('lowerarm_twist_01', 'lowerarm', (52, 126.3, -3.7)),
+               ('lowerarm_twist_02', 'lowerarm', (60, 120.7, -2.8)), ('hand', 'lowerarm', (68, 115, -2)),
+               ('thumb_01', 'hand', (70, 113, 1)), ('thumb_02', 'thumb_01', (72, 112, 2.5)), ('thumb_03', 'thumb_02', (73.5, 111, 3.5)),
+               ('index_metacarpal', 'hand', (71, 114.5, -0.5)), ('index_01', 'index_metacarpal', (74, 114, -1)), ('index_02', 'index_01', (77, 113, -1)), ('index_03', 'index_02', (79, 112, -1)),
+               ('middle_metacarpal', 'hand', (71, 114, -2)), ('middle_01', 'middle_metacarpal', (74.5, 113, -2.5)), ('middle_02', 'middle_01', (78, 111, -2.5)), ('middle_03', 'middle_02', (80.5, 110, -2.5)),
+               ('ring_metacarpal', 'hand', (70.5, 113.5, -3.2)), ('ring_01', 'ring_metacarpal', (74, 112, -4)), ('ring_02', 'ring_01', (77, 110, -4)), ('ring_03', 'ring_02', (79, 109, -4)),
+               ('pinky_metacarpal', 'hand', (70, 113, -4.5)), ('pinky_01', 'pinky_metacarpal', (73, 111, -5.5)), ('pinky_02', 'pinky_01', (75.5, 109, -5.5)), ('pinky_03', 'pinky_02', (77.5, 108, -5.5)),
+               ('thigh', 'pelvis', (10, 95, -1.5)), ('thigh_twist_01', 'thigh', (10.6, 81, -0.5)), ('thigh_twist_02', 'thigh', (11.3, 67, 0.5)), ('calf', 'thigh', (12, 54, 1)),
+               ('calf_twist_01', 'calf', (12.4, 40, 0.3)), ('calf_twist_02', 'calf', (12.8, 26, -0.3)), ('foot', 'calf', (13.5, 12, -4.5)), ('ball', 'foot', (14, 3, 8))]
+        for n, par, (x, y, z) in arm:
+            add(s(n), par if par in ('spine_05', 'pelvis') else s(par), (sx * x, y, z))
+    add('ik_foot_root', 'root', (0, 0, 0)); add('ik_foot_l', 'ik_foot_root', G['foot_l']); add('ik_foot_r', 'ik_foot_root', G['foot_r'])
+    add('ik_hand_root', 'root', (0, 0, 0)); add('ik_hand_gun', 'ik_hand_root', G['hand_r']); add('ik_hand_l', 'ik_hand_gun', G['hand_l']); add('ik_hand_r', 'ik_hand_gun', G['hand_r'])
+    add('interaction', 'root', (0, 0, 0)); add('center_of_mass', 'root', (0, 0, 0))
+    assert len(G) == 89, len(G)
+    names = list(G.keys())
+    ids = {n: 1000 + i for i, n in enumerate(names)}
+    models = []
+    for n in names:
+        pg = G[PAR[n]] if PAR[n] else (0, 0, 0)
+        loc = tuple(G[n][i] - pg[i] for i in range(3))
+        models.append(model(ids[n], n, 'LimbNode', loc))
+    conns = [(ids[n], ids[PAR[n]] if PAR[n] else 0) for n in names]
+    top = [
+        N('FBXHeaderExtension', [], [N('FBXHeaderVersion', [('I', 1003)]), N('FBXVersion', [('I', 7400)]), N('Creator', [('S', 'Quinn-like 89-bone fixture (NOT a UE export)')])]),
+        N('GlobalSettings', [], [N('Version', [('I', 1000)]), N('Properties70', [], [
+            P_('UpAxis', 1), P_('UpAxisSign', 1), P_('FrontAxis', 2), P_('FrontAxisSign', 1), P_('CoordAxis', 0), P_('CoordAxisSign', 1),
+            P('UnitScaleFactor', 'double', 'Number', '', 1.0), P('OriginalUnitScaleFactor', 'double', 'Number', '', 1.0)])]),
+        N('Objects', [], models),
+        N('Connections', [], [N('C', [('S', 'OO'), ('L', a), ('L', b)]) for a, b in conns]),
+    ]
+    data = b'Kaydara FBX Binary  \x00\x1a\x00' + struct.pack('<I', 7400)
+    off = len(data)
+    for t in top:
+        b = t(off); data += b; off += len(b)
+    data += NULL_REC + b'\x00' * 176
+    while len(data) % 16:
+        data += b'\x00'
+    with open(os.path.join(HERE, out), 'wb') as fh:
+        fh.write(data)
+    print('wrote', out, len(data), 'bytes')
+
+
+def P_(name, val):
+    return P(name, 'int', 'Integer', '', val)
+
+
 if __name__ == '__main__':
     build(1.0, 1, 'test_skeleton_binary.fbx')
     build(100.0, 2, 'test_skeleton_binary_zup_m.fbx')
+    build_quinn_like()

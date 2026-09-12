@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useAppStore } from '../../store/appStore';
 import { ViewportManager } from './viewportManager';
 import { setViewportManager } from './viewportBridge';
+import { moveFittedJoint } from '../../lib/fitService';
 import { toast } from 'sonner';
 
 export default function Viewport3D() {
@@ -21,6 +22,10 @@ export default function Viewport3D() {
   const symmetry = useAppStore(s => s.symmetry);
   const selectedBoneName = useAppStore(s => s.selectedBoneName);
   const showBoneAxes = useAppStore(s => s.showBoneAxes);
+  const fitted = useAppStore(s => s.fitted);
+  const showFitted = useAppStore(s => s.showFitted);
+  const fitEditMode = useAppStore(s => s.fitEditMode);
+  const setSelectedBone = useAppStore(s => s.setSelectedBone);
   const cameraCommand = useAppStore(s => s.cameraCommand);
 
   const placeLandmark = useAppStore(s => s.placeLandmark);
@@ -33,6 +38,7 @@ export default function Viewport3D() {
     const m = new ViewportManager(containerRef.current);
     managerRef.current = m;
     setViewportManager(m);
+    if (typeof window !== 'undefined') window.__quinnViewport = m;
     m.setCallbacks({
       onLandmarkPlaced: (id, pos) => {
         placeLandmark(id, pos);
@@ -42,6 +48,8 @@ export default function Viewport3D() {
         moveLandmark(id, pos);
       },
       onLandmarkSelected: (id) => setActiveLandmark(id),
+      onJointSelected: (name) => setSelectedBone(name),
+      onJointMoved: (name, pos) => moveFittedJoint(name, pos),
     });
     return () => { setViewportManager(null); m.dispose(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -69,6 +77,12 @@ export default function Viewport3D() {
   // Skeleton overlay content
   useEffect(() => { managerRef.current?.renderSkeleton(template); }, [template]);
   useEffect(() => { managerRef.current?.setBoneAxesVisible(showBoneAxes); }, [showBoneAxes, template]);
+
+  // Fitted skeleton (Phase B)
+  useEffect(() => { managerRef.current?.renderFittedSkeleton(fitted); }, [fitted]);
+  useEffect(() => { managerRef.current?.setFittedVisible(showFitted); }, [showFitted, fitted]);
+  useEffect(() => { managerRef.current?.setJointEditMode(fitEditMode); }, [fitEditMode]);
+  useEffect(() => { managerRef.current?.highlightJoint(selectedBoneName); }, [selectedBoneName, fitted]);
   useEffect(() => { managerRef.current?.highlightBone(selectedBoneName); }, [selectedBoneName, template]);
 
   // Camera commands

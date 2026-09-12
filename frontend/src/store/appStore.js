@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { initialLandmarkState, LANDMARKS_BY_ID } from '../lib/landmarks';
+import { initialLandmarkState, LANDMARKS_BY_ID, LANDMARKS } from '../lib/landmarks';
 import { DEFAULT_QUINN_TEMPLATE } from '../lib/quinnTemplate';
 
 const MAX_HISTORY = 50;
@@ -25,6 +25,8 @@ export const useAppStore = create((set, get) => ({
   landmarks: initialLandmarkState(),
   activeLandmarkId: null,
   placingMode: false,
+  landmarkMode: 'idle', // idle | edit | manual
+  detectionRun: false,
   symmetry: { enabled: true, axis: 'x' },
 
   // ---------- Skeleton template ----------
@@ -35,6 +37,17 @@ export const useAppStore = create((set, get) => ({
   templateImporting: false,
   selectedBoneName: null,
   showBoneAxes: false,
+
+  // ---------- Fitted skeleton (Phase B) ----------
+  fitted: null,          // { bones[], report } — same names/parents/order as template
+  fittedAuto: null,      // last untouched auto-fit result (for RESET BONE / RESET FIT)
+  fitEditMode: false,    // draggable joints in viewport
+  comparison: null,      // RigValidator.compareWithSource result
+  fitApproved: false,
+  fitApproval: null,     // { approved_at, acknowledged_warnings, acknowledged_by_user }
+  fitStale: false,       // landmarks changed since last fit
+  showFitted: true,
+  rightTab: 'landmarks',
 
   // ---------- Viewport ----------
   showSkeleton: false,
@@ -53,13 +66,17 @@ export const useAppStore = create((set, get) => ({
   setStage: (stage) => set({ stage }),
 
   setProject: (project) => {
+    const landmarks = project.landmarks && project.landmarks.length ? project.landmarks : initialLandmarkState();
+    const detectionRun = landmarks.some(l => l.auto);
     set({
       projectId: project.id,
       projectName: project.name,
       stage: project.stage || 'import',
-      landmarks: project.landmarks && project.landmarks.length
-        ? project.landmarks
-        : initialLandmarkState(),
+      landmarks,
+      detectionRun,
+      landmarkMode: detectionRun ? 'edit' : 'idle',
+      activeLandmarkId: null,
+      placingMode: false,
       symmetry: project.symmetry || { enabled: true, axis: 'x' },
       mesh: project.mesh || emptyMesh,
       meshLoaded: !!(project.mesh && project.mesh.vertices > 0),
@@ -72,6 +89,13 @@ export const useAppStore = create((set, get) => ({
       templateSavedId: project.template?.saved_template_id || null,
       templateValidation: null,
       selectedBoneName: null,
+      fitted: project.fitted && project.fitted.bones ? project.fitted : null,
+      fittedAuto: project.fitted && project.fitted.bones ? JSON.parse(JSON.stringify(project.fitted)) : null,
+      comparison: null,
+      fitEditMode: false,
+      fitApproved: !!project.fit_approved,
+      fitApproval: project.fit_approval || null,
+      fitStale: false,
       dirty: false,
       lastSavedAt: project.updated_at,
       history: [],
@@ -116,7 +140,7 @@ export const useAppStore = create((set, get) => ({
     const def = LANDMARKS_BY_ID[id];
     const landmarks = state.landmarks.map(l =>
       l.id === id
-        ? { ...l, placed: true, position: { x: pos.x, y: pos.y, z: pos.z }, mirrored: false }
+        ? { ...l, placed: true, position: { x: pos.x, y: pos.y, z: pos.z }, mirrored: false, confidence: 'manual', auto: false }
         : l
     );
 
@@ -162,7 +186,7 @@ export const useAppStore = create((set, get) => ({
       landmarks: updated,
       activeLandmarkId: nextActive,
       placingMode: !!nextActive,
-      dirty: true,
+      dirty: true, fitStale: !!get().fitted,
     });
   },
 
@@ -171,7 +195,7 @@ export const useAppStore = create((set, get) => ({
     state._pushHistory();
     let updated = state.landmarks.map(l =>
       l.id === id
-        ? { ...l, placed: true, position: { x: pos.x, y: pos.y, z: pos.z }, mirrored: false }
+        ? { ...l, placed: true, position: { x: pos.x, y: pos.y, z: pos.z }, mirrored: false, confidence: 'manual', auto: false }
         : l
     );
     if (state.symmetry.enabled) {
@@ -193,7 +217,7 @@ export const useAppStore = create((set, get) => ({
         );
       }
     }
-    set({ landmarks: updated, dirty: true });
+    set({ landmarks: updated, dirty: true, fitStale: !!get().fitted });
   },
 
   clearLandmark: (id) => {
@@ -201,16 +225,16 @@ export const useAppStore = create((set, get) => ({
     state._pushHistory();
     set({
       landmarks: state.landmarks.map(l =>
-        l.id === id ? { ...l, placed: false, position: {x:0,y:0,z:0}, mirrored: false } : l
+        l.id === id ? { ...l, placed: false, position: {x:0,y:0,z:0}, mirrored: false, confidence: undefined, note: undefined, auto: false } : l
       ),
-      dirty: true,
+      dirty: true, fitStale: !!get().fitted,
     });
   },
 
   resetAllLandmarks: () => {
     const state = get();
     state._pushHistory();
-    set({ landmarks: initialLandmarkState(), activeLandmarkId: null, placingMode: false, dirty: true });
+    set({ landmarks: initialLandmarkState(), activeLandmarkId: null, placingMode: false, landmarkMode: 'idle', detectionRun: false, dirty: true, fitStale: !!get().fitted });
   },
 
   mirrorAllFromLeft: () => {
@@ -232,10 +256,25 @@ export const useAppStore = create((set, get) => ({
       }
       return l;
     });
-    set({ landmarks: updated, dirty: true });
+    set({ landmarks: updated, dirty: true, fitStale: !!get().fitted });
   },
 
   setSymmetry: (patch) => set({ symmetry: { ...get().symmetry, ...patch }, dirty: true }),
+
+  /** Apply auto-detected landmarks. Keeps manually-placed ones unless overwrite=true. */
+  applyDetectedLandmarks: (detected, { overwrite = true } = {}) => {
+    const state = get();
+    state._pushHistory();
+    const landmarks = state.landmarks.map(l => {
+      const d = detected[l.id];
+      if (!d) return l;
+      if (!overwrite && l.placed && l.confidence === 'manual') return l;
+      if (!d.position) return { ...l, placed: false, position: { x: 0, y: 0, z: 0 }, mirrored: false, confidence: 'not_found', note: d.note, auto: true };
+      return { ...l, placed: true, position: d.position, mirrored: false, confidence: d.confidence, note: d.note, auto: true };
+    });
+    set({ landmarks, activeLandmarkId: null, placingMode: false, landmarkMode: 'edit', detectionRun: true, dirty: true, fitStale: !!state.fitted });
+  },
+  setLandmarkMode: (mode) => set({ landmarkMode: mode }),
 
   // ---------- Undo/redo ----------
   undo: () => {
@@ -246,7 +285,7 @@ export const useAppStore = create((set, get) => ({
       landmarks: JSON.parse(prev),
       history: history.slice(0, -1),
       future: [JSON.stringify(landmarks), ...future].slice(0, MAX_HISTORY),
-      dirty: true,
+      dirty: true, fitStale: !!get().fitted,
     });
   },
   redo: () => {
@@ -257,7 +296,7 @@ export const useAppStore = create((set, get) => ({
       landmarks: JSON.parse(next),
       history: [...history, JSON.stringify(landmarks)].slice(-MAX_HISTORY),
       future: future.slice(1),
-      dirty: true,
+      dirty: true, fitStale: !!get().fitted,
     });
   },
 
@@ -268,6 +307,7 @@ export const useAppStore = create((set, get) => ({
     templateValidation: validation,
     templateSavedId: savedId,
     selectedBoneName: null,
+    fitted: null, fittedAuto: null, comparison: null, fitEditMode: false, fitApproved: false,
     dirty: true,
   }),
   setTemplateValidation: (validation) => set({ templateValidation: validation }),
@@ -279,10 +319,24 @@ export const useAppStore = create((set, get) => ({
     templateValidation: null,
     templateSavedId: null,
     selectedBoneName: null,
+    fitted: null, fittedAuto: null, comparison: null, fitEditMode: false, fitApproved: false,
     dirty: true,
   }),
   setSelectedBone: (name) => set({ selectedBoneName: name }),
   toggleBoneAxes: () => set({ showBoneAxes: !get().showBoneAxes }),
+  setRightTab: (tab) => set({ rightTab: tab }),
+
+  // ---------- Fitted skeleton ----------
+  setFitted: (fitted, comparison = null) => set({
+    fitted, fittedAuto: fitted ? JSON.parse(JSON.stringify(fitted)) : null, comparison, fitApproved: false, fitApproval: null, fitStale: false, dirty: true,
+    stage: fitted ? 'skeleton' : get().stage,
+  }),
+  updateFittedBones: (bones) => set({ fitted: { ...get().fitted, bones, edited: true }, comparison: null, fitApproved: false, fitApproval: null, dirty: true }),
+  setComparison: (comparison) => set({ comparison }),
+  setFitEditMode: (v) => set({ fitEditMode: v, placingMode: v ? false : get().placingMode, activeLandmarkId: v ? null : get().activeLandmarkId }),
+  toggleFitted: () => set({ showFitted: !get().showFitted }),
+  clearFit: () => set({ fitted: null, fittedAuto: null, comparison: null, fitEditMode: false, fitApproved: false, fitApproval: null, fitStale: false, dirty: true }),
+  setFitApproved: (v, meta = null) => set({ fitApproved: v, fitApproval: v ? { approved_at: new Date().toISOString(), ...(meta || {}) } : null, dirty: true }),
 
   // ---------- Viewport toggles ----------
   toggleSkeleton:   () => set({ showSkeleton:   !get().showSkeleton }),
@@ -304,4 +358,10 @@ function mirrorPos(pos, axis) {
   else if (axis === 'y') p.y = -p.y;
   else if (axis === 'z') p.z = -p.z;
   return p;
+}
+
+// Test hook: lets automation drive the store (landmark placement etc.) without canvas clicks.
+if (typeof window !== 'undefined') {
+  window.__quinnStore = useAppStore;
+  window.__quinnLandmarks = LANDMARKS;
 }

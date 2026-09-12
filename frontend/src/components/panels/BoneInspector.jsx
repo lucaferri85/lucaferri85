@@ -9,6 +9,8 @@ export default function BoneInspector() {
   const template = useAppStore(s => s.template);
   const name = useAppStore(s => s.selectedBoneName);
   const setSelectedBone = useAppStore(s => s.setSelectedBone);
+  const fitted = useAppStore(s => s.fitted);
+  const fittedBone = useMemo(() => fitted?.bones.find(b => b.name === name) || null, [fitted, name]);
 
   const { bone, children, depth } = useMemo(() => {
     const byName = Object.fromEntries((template.bones || []).map(b => [b.name, b]));
@@ -57,6 +59,16 @@ export default function BoneInspector() {
           {bone.bind_pose_global_pos && <KV k="bind pose pos" v={vec(bone.bind_pose_global_pos)} mono />}
           {typeof bone.bind_pose_deviation_m === 'number' && <KV k="bind Δ" v={`${(bone.bind_pose_deviation_m * 1000).toFixed(3)} mm`} mono />}
         </Group>
+        {fittedBone && (
+          <Group title={`Fitted (${fittedBone.method}${fittedBone.manual ? ' · manual' : ''} · ${fittedBone.status})`}>
+            <KV k="global pos" v={vec(fittedBone.globalPos)} mono />
+            <KV k="global euler°" v={vec(quatToEulerDeg(fittedBone.globalRot), 2)} mono />
+            <KV k="local pos" v={vec(fittedBone.localPos)} mono />
+            <KV k="local euler°" v={vec(quatToEulerDeg(fittedBone.localRot), 2)} mono />
+            {fittedBone.lengthRatio && <KV k="length vs template" v={`${fittedBone.lengthRatio.toFixed(3)}×`} mono />}
+            {fittedBone.message && <div className="text-[9px]" style={{ color: 'var(--text-mid)' }}>{fittedBone.message}</div>}
+          </Group>
+        )}
         {raw && (
           <Group title="Verbatim FBX node values (file units)">
             <KV k="Lcl Translation" v={vec(raw.lcl_translation, 3)} mono />

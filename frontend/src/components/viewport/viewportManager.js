@@ -17,6 +17,7 @@ import { GLTFLoader }   from 'three/examples/jsm/loaders/GLTFLoader';
 import { OBJLoader }    from 'three/examples/jsm/loaders/OBJLoader';
 import { FBXLoader }    from 'three/examples/jsm/loaders/FBXLoader';
 import { LANDMARKS_BY_ID } from '../../lib/landmarks';
+import { sampleTriangles } from '../../lib/meshSampler';
 
 const VIEWPORT_BG = 0x121316;
 const GRID_MAJOR  = 0x2e323b;
@@ -262,6 +263,10 @@ export class ViewportManager {
       const mat = m.material;
       if (lm.mirrored) mat.emissiveIntensity = 0.4;
       else             mat.emissiveIntensity = 0.9;
+      // auto-detected confidence: lower confidence = bigger, dimmer marker so it stands out for review
+      const conf = lm.confidence;
+      m.scale.setScalar(conf === 'low' ? 1.45 : conf === 'medium' ? 1.2 : 1);
+      if (conf === 'low') mat.emissiveIntensity = 0.35;
     }
   }
 
@@ -347,6 +352,78 @@ export class ViewportManager {
 
   setBoneAxesVisible(v) { this.showBoneAxes = v; if (this.boneAxes) this.boneAxes.visible = v; }
 
+  // ---------- Fitted skeleton (Phase B) ----------
+
+  /** Render the fitted skeleton (orange) with draggable joint spheres. */
+  renderFittedSkeleton(fitted) {
+    if (!this.fittedGroup) {
+      this.fittedGroup = new THREE.Group();
+      this.scene.add(this.fittedGroup);
+      this.jointMeshes = new Map();
+    }
+    while (this.fittedGroup.children.length) {
+      const c = this.fittedGroup.children[0];
+      this.fittedGroup.remove(c);
+      if (c.geometry) c.geometry.dispose();
+      if (c.material && c.material.dispose) c.material.dispose();
+    }
+    this.jointMeshes.clear();
+    if (!fitted || !fitted.bones) return;
+    const by = Object.fromEntries(fitted.bones.map(b => [b.name, b]));
+    const pos = [], col = [];
+    const cOk = new THREE.Color(0xf97316), cWarn = new THREE.Color(0xeab308), cErr = new THREE.Color(0xef4444), cIk = new THREE.Color(0x06b6d4), cTwist = new THREE.Color(0xc084fc);
+    for (const b of fitted.bones) {
+      if (!b.parent || !by[b.parent]) continue;
+      const p = by[b.parent].globalPos, g = b.globalPos;
+      pos.push(p[0], p[1], p[2], g[0], g[1], g[2]);
+      const c = b.status === 'error' ? cErr : b.status === 'warn' ? cWarn : b.kind === 'ik' ? cIk : b.kind === 'twist' ? cTwist : cOk;
+      col.push(c.r, c.g, c.b, c.r, c.g, c.b);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    const lines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, transparent: true, opacity: 0.95 }));
+    lines.renderOrder = 7;
+    this.fittedGroup.add(lines);
+
+    const jGeo = new THREE.SphereGeometry(0.011, 10, 10);
+    for (const b of fitted.bones) {
+      const color = b.status === 'error' ? 0xef4444 : b.status === 'warn' ? 0xeab308 : b.manual ? 0x38bdf8 : 0xffffff;
+      const m = new THREE.Mesh(jGeo, new THREE.MeshBasicMaterial({ color, depthTest: false }));
+      m.position.set(b.globalPos[0], b.globalPos[1], b.globalPos[2]);
+      m.renderOrder = 8;
+      m.userData.jointName = b.name;
+      this.fittedGroup.add(m);
+      this.jointMeshes.set(b.name, m);
+    }
+    this.highlightJoint(this._highlightedJoint);
+  }
+
+  setFittedVisible(v) { if (this.fittedGroup) this.fittedGroup.visible = v; }
+
+  setJointEditMode(v) {
+    this.jointEditMode = v;
+    this.renderer.domElement.style.cursor = v ? 'move' : 'default';
+  }
+
+  highlightJoint(name) {
+    this._highlightedJoint = name;
+    if (!this.jointMeshes) return;
+    for (const [n, m] of this.jointMeshes) {
+      const on = n === name;
+      m.scale.setScalar(on ? 2.4 : 1);
+      if (on) m.material.color.set(0xf97316);
+    }
+  }
+
+  _pickJoint() {
+    if (!this.fittedGroup || !this.fittedGroup.visible) return null;
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    this.raycaster.params.Points = { threshold: 0.02 };
+    const hits = this.raycaster.intersectObjects([...this.jointMeshes.values()], false);
+    return hits[0] || null;
+  }
+
   /** Highlight a bone in the skeleton overlay. */
   highlightBone(name) {
     this.skeletonGroup.traverse(o => {
@@ -378,6 +455,27 @@ export class ViewportManager {
       throw new Error(`Unsupported mesh format: ${ext}`);
     }
     return this._installMesh(obj, ext, file.name);
+  }
+
+  /** World-space, area-uniform surface sample of the current mesh (≈ maxPoints) for landmark detection. */
+  getMeshPointCloud(maxPoints = 80000) {
+    if (!this.currentMesh) return [];
+    this.currentMesh.updateMatrixWorld(true);
+    const tris = [];
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+    this.currentMesh.traverse(o => {
+      if (!o.isMesh || !o.geometry?.attributes.position) return;
+      const pos = o.geometry.attributes.position, index = o.geometry.index;
+      const n = index ? index.count : pos.count;
+      const at = (k) => index ? index.getX(k) : k;
+      for (let i = 0; i + 2 < n; i += 3) {
+        a.fromBufferAttribute(pos, at(i)).applyMatrix4(o.matrixWorld);
+        b.fromBufferAttribute(pos, at(i + 1)).applyMatrix4(o.matrixWorld);
+        c.fromBufferAttribute(pos, at(i + 2)).applyMatrix4(o.matrixWorld);
+        tris.push([a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z]);
+      }
+    });
+    return sampleTriangles(tris, maxPoints);
   }
 
   removeMesh() {
@@ -510,9 +608,10 @@ export class ViewportManager {
     const mat = new THREE.MeshStandardMaterial({
       color, emissive: color, emissiveIntensity: 0.9,
       roughness: 0.4, metalness: 0.0,
-      depthTest: true,
+      depthTest: false, transparent: true, opacity: 0.95,
     });
     const mesh = new THREE.Mesh(geo, mat);
+    mesh.renderOrder = 4;
     mesh.userData.landmarkId = id;
     // Ring accent
     const ringGeo = new THREE.RingGeometry(0.03, 0.038, 24);
@@ -572,6 +671,18 @@ export class ViewportManager {
   _onPointerMove(evt) {
     this._updatePointer(evt);
 
+    // Dragging a fitted joint on a camera-facing plane
+    if (this._jointDrag) {
+      this.raycaster.setFromCamera(this.pointer, this.camera);
+      const hit = new THREE.Vector3();
+      if (this.raycaster.ray.intersectPlane(this._jointDrag.plane, hit)) {
+        this._jointDrag.moved = true;
+        const m = this.jointMeshes.get(this._jointDrag.name);
+        if (m) m.position.copy(hit);
+      }
+      return;
+    }
+
     // Dragging a landmark
     if (this._dragging) {
       const surface = this._pickMeshSurface();
@@ -611,6 +722,21 @@ export class ViewportManager {
     if (evt.button !== 0) return;
     this._updatePointer(evt);
 
+    // Fitted joint editing has priority when enabled
+    if (this.jointEditMode && this.jointMeshes) {
+      const hit = this._pickJoint();
+      if (hit) {
+        const name = hit.object.userData.jointName;
+        const normal = new THREE.Vector3();
+        this.camera.getWorldDirection(normal);
+        const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, hit.object.position.clone());
+        this._jointDrag = { name, plane, moved: false };
+        this.controls.enabled = false;
+        this.callbacks.onJointSelected && this.callbacks.onJointSelected(name);
+        return;
+      }
+    }
+
     // Placement mode has priority
     if (this.placingMode && this.activeLandmarkId) {
       const surface = this._pickMeshSurface();
@@ -633,6 +759,16 @@ export class ViewportManager {
   }
 
   _onPointerUp() {
+    if (this._jointDrag) {
+      const { name, moved } = this._jointDrag;
+      this._jointDrag = null;
+      this.controls.enabled = true;
+      if (moved) {
+        const m = this.jointMeshes.get(name);
+        if (m) this.callbacks.onJointMoved && this.callbacks.onJointMoved(name, { x: m.position.x, y: m.position.y, z: m.position.z });
+      }
+      return;
+    }
     if (this._dragging) {
       if (this._draggedMoved) {
         const m = this.landmarkMeshes.get(this._dragging.id);
