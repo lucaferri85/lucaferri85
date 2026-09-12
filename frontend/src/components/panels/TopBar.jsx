@@ -39,6 +39,14 @@ import {
 } from '../../lib/projectService';
 
 import {
+  restoreMeshFile,
+} from '../../lib/meshStorage';
+
+import {
+  getViewportManager,
+} from '../viewport/viewportBridge';
+
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -140,7 +148,116 @@ export default function TopBar() {
 
         await refreshList();
       } catch {
-        // Toast already shown by projectService.
+        // Error already shown by service.
+      }
+    };
+
+  const restoreProjectMesh =
+    async (project) => {
+      const mesh =
+        project?.mesh;
+
+      if (
+        !mesh ||
+        !mesh.vertices
+      ) {
+        return;
+      }
+
+      const manager =
+        getViewportManager();
+
+      if (!manager) {
+        throw new Error(
+          'Viewport is not ready'
+        );
+      }
+
+      if (
+        !mesh.local_asset_id
+      ) {
+        manager.removeMesh();
+
+        toast.warning(
+          'This project was saved before local mesh storage was enabled. Re-import the original mesh once and press SAVE again.',
+          {
+            duration: 12000,
+          }
+        );
+
+        return;
+      }
+
+      const file =
+        await restoreMeshFile(
+          mesh.local_asset_id
+        );
+
+      if (!file) {
+        manager.removeMesh();
+
+        throw new Error(
+          `Stored mesh file "${mesh.filename || 'mesh'}" was not found. Re-import the original mesh and save the project again.`
+        );
+      }
+
+      const loadingToast =
+        toast.loading(
+          `Restoring ${file.name}…`
+        );
+
+      try {
+        const restoredInfo =
+          await manager.loadMeshFromFile(
+            file
+          );
+
+        /*
+         * Keep the original persisted metadata / local_asset_id.
+         * restoredInfo is useful only as proof the actual geometry
+         * successfully loaded.
+         */
+        useAppStore.setState({
+          mesh: {
+            ...mesh,
+
+            vertices:
+              restoredInfo.vertices,
+
+            faces:
+              restoredInfo.faces,
+
+            height_m:
+              restoredInfo.height_m,
+
+            bounds_min:
+              restoredInfo.bounds_min,
+
+            bounds_max:
+              restoredInfo.bounds_max,
+          },
+
+          meshLoaded:
+            true,
+        });
+
+        toast.success(
+          `Restored mesh: ${file.name}`,
+          {
+            id:
+              loadingToast,
+          }
+        );
+      } catch (error) {
+        toast.error(
+          `Mesh restore failed: ${error.message}`,
+          {
+            id:
+              loadingToast,
+          }
+        );
+
+        throw error;
       }
     };
 
@@ -165,8 +282,7 @@ export default function TopBar() {
         if (
           source ===
             'user_authoritative' &&
-          templateData
-            ?.bones
+          templateData?.bones
         ) {
           try {
             await runValidation(
@@ -182,6 +298,10 @@ export default function TopBar() {
           }
         }
 
+        await restoreProjectMesh(
+          project
+        );
+
         toast.success(
           `Loaded locally: ${project.name}`
         );
@@ -190,8 +310,15 @@ export default function TopBar() {
           false
         );
       } catch (error) {
+        console.error(
+          error
+        );
+
         toast.error(
-          `Load failed: ${error.message}`
+          `Load failed: ${error.message}`,
+          {
+            duration: 10000,
+          }
         );
       }
     };
@@ -208,7 +335,6 @@ export default function TopBar() {
           'var(--panel-border)',
       }}
     >
-      {/* LEFT */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
           <div
@@ -301,11 +427,11 @@ export default function TopBar() {
           title="Projects are stored locally on this computer"
         >
           <HardDrive className="w-3 h-3" />
+
           LOCAL
         </span>
       </div>
 
-      {/* CENTER */}
       <div className="flex items-center gap-1">
         <Button
           data-testid="undo-button"
@@ -342,7 +468,6 @@ export default function TopBar() {
         </Button>
       </div>
 
-      {/* RIGHT */}
       <div className="flex items-center gap-2">
         <Popover
           open={
@@ -360,9 +485,9 @@ export default function TopBar() {
               variant="outline"
               size="sm"
               className="h-8 text-xs border-[color:var(--panel-border)] hover:bg-[color:var(--panel-bg-raised)] gap-1.5"
-              onClick={() => {
-                refreshList();
-              }}
+              onClick={
+                refreshList
+              }
             >
               <FolderOpen className="w-3.5 h-3.5" />
               LOAD
@@ -382,6 +507,7 @@ export default function TopBar() {
             >
               <span className="dcc-label flex items-center gap-1.5">
                 <HardDrive className="w-3 h-3" />
+
                 LOCAL PROJECTS ·{' '}
                 {
                   projects.length
